@@ -1,0 +1,102 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fl-baselines"
+version = "0.1.0"
+description = "Extensible federated learning baselines built on Flower and PyTorch."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+dependencies = [
+    "flwr[simulation]==1.26.1",
+    "numpy==2.3.3",
+    "torch==2.8.0",
+    "torchvision==0.23.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.flwr.app]
+publisher = "local"
+
+[tool.flwr.app.components]
+serverapp = "fl_baselines.app.server_app:app"
+clientapp = "fl_baselines.app.client_app:app"
+
+[tool.flwr.app.config]
+# Baseline selection
+algorithm = "fedavg"
+
+# Dataset selection
+dataset = "mnist"
+partitioner = "iid"
+dirichlet-alpha = 0.5
+seed = 42
+data-dir = "data"
+emnist-split = "balanced"
+
+# Model selection
+model = "mnist_cnn"
+input-channels = 1
+input-height = 28
+input-width = 28
+num-classes = 10
+
+# Federation runtime
+num-server-rounds = 3
+num-supernodes = 10
+fraction-train = 1.0
+fraction-evaluate = 1.0
+
+# Client local training, shared by FedAvg/FedAvgM/FedProx/SCAFFOLD/MOON
+local-epochs = 1
+batch-size = 32
+learning-rate = 0.01
+
+# FedAvg
+# No extra parameters.
+
+# FedAvgM
+server-learning-rate = 1.0
+server-momentum = 0.9
+
+# FedProx
+proximal-mu = 0.1
+
+# SCAFFOLD
+# No extra parameters.
+
+# MOON
+moon-mu = 1.0
+moon-temperature = 0.5
+
+# Artifacts and execution device
+output-dir = "outputs"
+device = "cpu"
+
+
+#######################################################################
+# CONFIGURATION MIGRATION NOTICE:
+#
+# What was previously called "federation config" for SuperLink
+# connections in pyproject.toml has been renamed and moved.
+#
+# These settings are now **SuperLink connection configuration**
+# and are defined in the Flower configuration file.
+#
+# The entries below are commented out intentionally and are kept
+# only as a migration reference.
+#
+# Docs: https://flower.ai/docs/framework/ref-flower-configuration.html
+#######################################################################
+
+# [tool.flwr.federations]
+# default = "local-simulation"
+
+# [tool.flwr.federations.local-simulation]
+# options.num-supernodes = 10
+# options.backend.client-resources.num-cpus = 2
+# options.backend.client-resources.num-gpus = 0.0
