@@ -38,7 +38,16 @@ class RegistryTest(unittest.TestCase):
     def test_default_components_include_algorithms(self) -> None:
         register_default_components()
 
-        for algorithm_name in ["fedavg", "fedavgm", "fedprox", "scaffold", "moon"]:
+        for algorithm_name in [
+            "fedavg",
+            "fedavgm",
+            "fednova",
+            "fedper",
+            "fedrep",
+            "fedprox",
+            "scaffold",
+            "moon",
+        ]:
             self.assertIn(algorithm_name, ALGORITHMS.names())
 
     def test_default_components_include_common_datasets(self) -> None:

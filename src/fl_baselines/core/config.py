@@ -45,6 +45,10 @@ class ExperimentConfig:
     moon_temperature: float = 0.5
     server_learning_rate: float = 1.0
     server_momentum: float = 0.9
+    fednova_server_momentum: float = 0.0
+    fedper_personal_layers: int = 1
+    fedrep_personal_layers: int = 1
+    fedrep_representation_epochs: int = 1
     input_channels: int = 1
     input_height: int = 28
     input_width: int = 28
@@ -89,6 +93,26 @@ class ExperimentConfig:
                 "server-momentum",
                 cls.server_momentum,
             ),
+            fednova_server_momentum=_as_float(
+                run_config,
+                "fednova-server-momentum",
+                cls.fednova_server_momentum,
+            ),
+            fedper_personal_layers=_as_int(
+                run_config,
+                "fedper-personal-layers",
+                cls.fedper_personal_layers,
+            ),
+            fedrep_personal_layers=_as_int(
+                run_config,
+                "fedrep-personal-layers",
+                cls.fedrep_personal_layers,
+            ),
+            fedrep_representation_epochs=_as_int(
+                run_config,
+                "fedrep-representation-epochs",
+                cls.fedrep_representation_epochs,
+            ),
             input_channels=_as_int(run_config, "input-channels", cls.input_channels),
             input_height=_as_int(run_config, "input-height", cls.input_height),
             input_width=_as_int(run_config, "input-width", cls.input_width),
@@ -131,6 +155,14 @@ class ExperimentConfig:
             raise ValueError("server-learning-rate must be positive")
         if self.server_momentum < 0:
             raise ValueError("server-momentum must be non-negative")
+        if self.fednova_server_momentum < 0:
+            raise ValueError("fednova-server-momentum must be non-negative")
+        if self.fedper_personal_layers <= 0:
+            raise ValueError("fedper-personal-layers must be positive")
+        if self.fedrep_personal_layers <= 0:
+            raise ValueError("fedrep-personal-layers must be positive")
+        if self.fedrep_representation_epochs <= 0:
+            raise ValueError("fedrep-representation-epochs must be positive")
         if self.input_channels <= 0 or self.input_height <= 0 or self.input_width <= 0:
             raise ValueError("input dimensions must be positive")
         if self.num_classes <= 0:

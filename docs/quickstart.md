@@ -58,6 +58,16 @@ learning-rate = 0.01
 server-learning-rate = 1.0
 server-momentum = 0.9
 
+# FedNova
+fednova-server-momentum = 0.0
+
+# FedPer
+fedper-personal-layers = 1
+
+# FedRep
+fedrep-personal-layers = 1
+fedrep-representation-epochs = 1
+
 # FedProx
 proximal-mu = 0.1
 
@@ -90,6 +100,24 @@ flwr run . --run-config 'algorithm="fedprox" proximal-mu=0.1' --stream
 
 ```bash
 flwr run . --run-config 'algorithm="fedavgm" server-learning-rate=1.0 server-momentum=0.9' --stream
+```
+
+## Chạy FedNova
+
+```bash
+flwr run . --run-config 'algorithm="fednova" fednova-server-momentum=0.0' --stream
+```
+
+## Chạy FedPer
+
+```bash
+flwr run . --run-config 'algorithm="fedper" fedper-personal-layers=1' --stream
+```
+
+## Chạy FedRep
+
+```bash
+flwr run . --run-config 'algorithm="fedrep" fedrep-personal-layers=1 fedrep-representation-epochs=1' --stream
 ```
 
 ## Chạy SCAFFOLD

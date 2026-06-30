@@ -62,7 +62,7 @@ algorithm = ALGORITHMS.get(config.algorithm)
 Nếu key sai, framework sẽ fail rõ ràng, ví dụ:
 
 ```text
-Unknown algorithm 'fednova'. Available: fedavg, fedavgm, fedprox, moon, scaffold
+Unknown algorithm 'custom'. Available: fedavg, fedavgm, fednova, fedper, fedrep, fedprox, moon, scaffold
 ```
 
 ## Config
@@ -86,6 +86,10 @@ Unknown algorithm 'fednova'. Available: fedavg, fedavgm, fedprox, moon, scaffold
 | `moon_temperature` | Temperature cho contrastive logits của MOON |
 | `server_learning_rate` | Learning rate của server optimizer cho FedAvgM |
 | `server_momentum` | Momentum của server optimizer cho FedAvgM |
+| `fednova_server_momentum` | Momentum phía server cho FedNova normalized updates |
+| `fedper_personal_layers` | Số module cuối có tham số được giữ local cho FedPer |
+| `fedrep_personal_layers` | Số module cuối có tham số được giữ local cho FedRep |
+| `fedrep_representation_epochs` | Số epoch train representation sau pha train head của FedRep |
 | `input_channels` | Số channel của input model |
 | `input_height` | Chiều cao input model |
 | `input_width` | Chiều rộng input model |

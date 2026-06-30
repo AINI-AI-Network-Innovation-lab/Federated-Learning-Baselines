@@ -11,6 +11,11 @@ import torch
 from flwr.client import NumPyClient
 from torch import nn
 
+from fl_baselines.algorithms.fedper import (
+    get_indexed_model_parameters,
+    set_indexed_model_parameters,
+    split_fedper_parameter_indices,
+)
 from fl_baselines.core.config import ExperimentConfig
 from fl_baselines.core.types import ClientDataLoaders
 from fl_baselines.training.evaluate import evaluate_model
@@ -58,6 +63,12 @@ class TorchFlowerClient(NumPyClient):
         config: dict[str, bool | bytes | float | int | str],
     ) -> tuple[list[np.ndarray], int, dict[str, bool | bytes | float | int | str]]:
         algorithm = str(config.get("algorithm", self.config.algorithm))
+        if algorithm == "fednova":
+            return self._fit_fednova(parameters, config)
+        if algorithm == "fedper":
+            return self._fit_fedper(parameters, config)
+        if algorithm == "fedrep":
+            return self._fit_fedrep(parameters, config)
         if algorithm == "scaffold":
             return self._fit_scaffold(parameters, config)
         if algorithm == "moon":
@@ -161,12 +172,236 @@ class TorchFlowerClient(NumPyClient):
             / "previous_model.pt"
         )
 
+    def _fit_fednova(
+        self,
+        parameters: list[np.ndarray],
+        config: dict[str, bool | bytes | float | int | str],
+    ) -> tuple[list[np.ndarray], int, dict[str, bool | bytes | float | int | str]]:
+        set_model_parameters(self.model, parameters)
+        initial_parameters = [parameter.copy() for parameter in parameters]
+
+        local_epochs = int(config.get("local_epochs", self.config.local_epochs))
+        learning_rate = float(config.get("learning_rate", self.config.learning_rate))
+        metrics = train_one_client(
+            self.model,
+            self.loaders.train,
+            epochs=local_epochs,
+            learning_rate=learning_rate,
+            device=self.config.device,
+        )
+        updated_parameters = get_model_parameters(self.model)
+        updates = [
+            initial_parameter - updated_parameter
+            for initial_parameter, updated_parameter in zip(
+                initial_parameters,
+                updated_parameters,
+            )
+        ]
+        local_norm = float(local_epochs * len(self.loaders.train))
+        metrics["local_norm"] = local_norm
+        metrics["tau"] = local_norm
+        return updates, len(self.loaders.train.dataset), metrics
+
+    def _fit_fedper(
+        self,
+        parameters: list[np.ndarray],
+        config: dict[str, bool | bytes | float | int | str],
+    ) -> tuple[list[np.ndarray], int, dict[str, bool | bytes | float | int | str]]:
+        shared_indices, personal_indices = self._fedper_indices(config)
+        set_indexed_model_parameters(self.model, shared_indices, parameters)
+        self._load_fedper_personal_parameters(personal_indices)
+
+        local_epochs = int(config.get("local_epochs", self.config.local_epochs))
+        learning_rate = float(config.get("learning_rate", self.config.learning_rate))
+        metrics = train_one_client(
+            self.model,
+            self.loaders.train,
+            epochs=local_epochs,
+            learning_rate=learning_rate,
+            device=self.config.device,
+        )
+        self._save_fedper_personal_parameters(personal_indices)
+        shared_parameters = get_indexed_model_parameters(self.model, shared_indices)
+        return shared_parameters, len(self.loaders.train.dataset), metrics
+
+    def _fedper_indices(
+        self,
+        config: dict[str, bool | bytes | float | int | str],
+    ) -> tuple[list[int], list[int]]:
+        personal_layers = int(
+            config.get(
+                "fedper_personal_layers",
+                self.config.fedper_personal_layers,
+            )
+        )
+        return split_fedper_parameter_indices(self.model, personal_layers)
+
+    def _fedper_personal_model_path(self) -> Path:
+        return (
+            Path(self.config.output_dir)
+            / "fedper_clients"
+            / self.client_id
+            / "personal.pt"
+        )
+
+    def _load_fedper_personal_parameters(self, personal_indices: list[int]) -> None:
+        personal_path = self._fedper_personal_model_path()
+        if not personal_path.exists():
+            return
+        personal_parameters = torch.load(
+            personal_path,
+            map_location="cpu",
+            weights_only=True,
+        )
+        set_indexed_model_parameters(self.model, personal_indices, personal_parameters)
+
+    def _save_fedper_personal_parameters(self, personal_indices: list[int]) -> None:
+        personal_path = self._fedper_personal_model_path()
+        personal_path.parent.mkdir(parents=True, exist_ok=True)
+        state_values = list(self.model.state_dict().values())
+        torch.save(
+            [
+                state_values[index].detach().cpu().clone()
+                for index in personal_indices
+            ],
+            personal_path,
+        )
+
+    def _fit_fedrep(
+        self,
+        parameters: list[np.ndarray],
+        config: dict[str, bool | bytes | float | int | str],
+    ) -> tuple[list[np.ndarray], int, dict[str, bool | bytes | float | int | str]]:
+        shared_indices, personal_indices = self._fedrep_indices(config)
+        set_indexed_model_parameters(self.model, shared_indices, parameters)
+        self._load_fedrep_personal_parameters(personal_indices)
+
+        head_epochs = int(config.get("local_epochs", self.config.local_epochs))
+        representation_epochs = int(
+            config.get(
+                "fedrep_representation_epochs",
+                self.config.fedrep_representation_epochs,
+            )
+        )
+        learning_rate = float(config.get("learning_rate", self.config.learning_rate))
+
+        head_metrics = self._train_fedrep_phase(
+            train_shared=False,
+            shared_indices=shared_indices,
+            epochs=head_epochs,
+            learning_rate=learning_rate,
+        )
+        representation_metrics = self._train_fedrep_phase(
+            train_shared=True,
+            shared_indices=shared_indices,
+            epochs=representation_epochs,
+            learning_rate=learning_rate,
+        )
+        self._save_fedrep_personal_parameters(personal_indices)
+        shared_parameters = get_indexed_model_parameters(self.model, shared_indices)
+        metrics = {
+            "fedrep_head_train_loss": float(head_metrics["train_loss"]),
+            "fedrep_head_train_accuracy": float(head_metrics["train_accuracy"]),
+            "fedrep_representation_train_loss": float(representation_metrics["train_loss"]),
+            "fedrep_representation_train_accuracy": float(
+                representation_metrics["train_accuracy"]
+            ),
+            "train_loss": float(representation_metrics["train_loss"]),
+            "train_accuracy": float(representation_metrics["train_accuracy"]),
+        }
+        return shared_parameters, len(self.loaders.train.dataset), metrics
+
+    def _train_fedrep_phase(
+        self,
+        *,
+        train_shared: bool,
+        shared_indices: list[int],
+        epochs: int,
+        learning_rate: float,
+    ) -> dict[str, float]:
+        self._set_fedrep_requires_grad(shared_indices, train_shared=train_shared)
+        metrics = train_one_client(
+            self.model,
+            self.loaders.train,
+            epochs=epochs,
+            learning_rate=learning_rate,
+            device=self.config.device,
+        )
+        for parameter in self.model.parameters():
+            parameter.requires_grad = True
+        return metrics
+
+    def _set_fedrep_requires_grad(
+        self,
+        shared_indices: list[int],
+        *,
+        train_shared: bool,
+    ) -> None:
+        state_keys = list(self.model.state_dict().keys())
+        shared_key_prefixes = tuple(state_keys[index] for index in shared_indices)
+        for name, parameter in self.model.named_parameters():
+            is_shared = name in shared_key_prefixes
+            parameter.requires_grad = is_shared if train_shared else not is_shared
+
+    def _fedrep_indices(
+        self,
+        config: dict[str, bool | bytes | float | int | str],
+    ) -> tuple[list[int], list[int]]:
+        personal_layers = int(
+            config.get(
+                "fedrep_personal_layers",
+                self.config.fedrep_personal_layers,
+            )
+        )
+        return split_fedper_parameter_indices(self.model, personal_layers)
+
+    def _fedrep_personal_model_path(self) -> Path:
+        return (
+            Path(self.config.output_dir)
+            / "fedrep_clients"
+            / self.client_id
+            / "personal.pt"
+        )
+
+    def _load_fedrep_personal_parameters(self, personal_indices: list[int]) -> None:
+        personal_path = self._fedrep_personal_model_path()
+        if not personal_path.exists():
+            return
+        personal_parameters = torch.load(
+            personal_path,
+            map_location="cpu",
+            weights_only=True,
+        )
+        set_indexed_model_parameters(self.model, personal_indices, personal_parameters)
+
+    def _save_fedrep_personal_parameters(self, personal_indices: list[int]) -> None:
+        personal_path = self._fedrep_personal_model_path()
+        personal_path.parent.mkdir(parents=True, exist_ok=True)
+        state_values = list(self.model.state_dict().values())
+        torch.save(
+            [
+                state_values[index].detach().cpu().clone()
+                for index in personal_indices
+            ],
+            personal_path,
+        )
+
     def evaluate(
         self,
         parameters: list[np.ndarray],
         config: dict[str, bool | bytes | float | int | str],
     ) -> tuple[float, int, dict[str, bool | bytes | float | int | str]]:
-        set_model_parameters(self.model, parameters)
+        algorithm = str(config.get("algorithm", self.config.algorithm))
+        if algorithm == "fedper":
+            shared_indices, personal_indices = self._fedper_indices(config)
+            set_indexed_model_parameters(self.model, shared_indices, parameters)
+            self._load_fedper_personal_parameters(personal_indices)
+        elif algorithm == "fedrep":
+            shared_indices, personal_indices = self._fedrep_indices(config)
+            set_indexed_model_parameters(self.model, shared_indices, parameters)
+            self._load_fedrep_personal_parameters(personal_indices)
+        else:
+            set_model_parameters(self.model, parameters)
         loss, metrics = evaluate_model(
             self.model,
             self.loaders.validation,

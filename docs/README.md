@@ -34,6 +34,9 @@ Mỗi algorithm có một file riêng trong `docs/algorithms/` để dễ mở r
 | [algorithms/index.md](algorithms/index.md) | Mục lục algorithm. |
 | [algorithms/fedavg.md](algorithms/fedavg.md) | FedAvg strategy builder và config liên quan. |
 | [algorithms/fedavgm.md](algorithms/fedavgm.md) | FedAvgM và server momentum. |
+| [algorithms/fednova.md](algorithms/fednova.md) | FedNova normalized averaging và client update metrics. |
+| [algorithms/fedper.md](algorithms/fedper.md) | FedPer shared base aggregation và personalized local head. |
+| [algorithms/fedrep.md](algorithms/fedrep.md) | FedRep shared representation aggregation và two-phase local training. |
 | [algorithms/fedprox.md](algorithms/fedprox.md) | FedProx strategy và proximal term ở client training. |
 | [algorithms/scaffold.md](algorithms/scaffold.md) | SCAFFOLD control variates phía server/client. |
 | [algorithms/moon.md](algorithms/moon.md) | MOON local model-contrastive training. |

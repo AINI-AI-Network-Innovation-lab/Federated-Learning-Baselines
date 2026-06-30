@@ -158,6 +158,9 @@ Các algorithm hiện có:
 
 - `fedavg`
 - `fedavgm`
+- `fednova`
+- `fedper`
+- `fedrep`
 - `fedprox`
 - `scaffold`
 - `moon`
@@ -168,7 +171,7 @@ Algorithm builder nên đảm bảo:
 - không hard-code dataset/model cụ thể
 - dùng metric aggregation chung nếu phù hợp
 - nếu có hyperparameter mới, thêm field vào `ExperimentConfig` và default trong `pyproject.toml`
-- nếu thuật toán cần state phía client, ví dụ SCAFFOLD cần client control variates hoặc MOON cần local model round trước, hãy cô lập logic đó trong `clients/` và `training/` thay vì hard-code dataset/model
+- nếu thuật toán cần state phía client, ví dụ SCAFFOLD cần client control variates, MOON cần local model round trước, hoặc FedPer/FedRep cần personal head theo client, hãy cô lập logic đó trong `clients/` và `training/` thay vì hard-code dataset/model
 
 ## Cách Thêm Một Baseline Hoàn Chỉnh
 

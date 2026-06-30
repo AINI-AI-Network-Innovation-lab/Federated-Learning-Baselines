@@ -18,6 +18,9 @@ Phiên bản hiện tại có baseline đầu tiên:
 | --- | --- | --- | --- | --- |
 | FedAvg MNIST CNN | FedAvg | MNIST | CNN nhỏ cho ảnh 28x28 | IID, Dirichlet |
 | FedAvgM MNIST CNN | FedAvgM | MNIST | CNN nhỏ cho ảnh 28x28 | IID, Dirichlet |
+| FedNova MNIST CNN | FedNova | MNIST | CNN nhỏ cho ảnh 28x28 | IID, Dirichlet |
+| FedPer MNIST CNN | FedPer | MNIST | CNN nhỏ cho ảnh 28x28 | IID, Dirichlet |
+| FedRep MNIST CNN | FedRep | MNIST | CNN nhỏ cho ảnh 28x28 | IID, Dirichlet |
 | FedProx MNIST CNN | FedProx | MNIST | CNN nhỏ cho ảnh 28x28 | IID, Dirichlet |
 | SCAFFOLD MNIST CNN | SCAFFOLD | MNIST | CNN nhỏ cho ảnh 28x28 | IID, Dirichlet |
 | MOON MNIST CNN | MOON | MNIST | CNN nhỏ cho ảnh 28x28 | IID, Dirichlet |
