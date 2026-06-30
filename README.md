@@ -17,13 +17,13 @@ Tài liệu chi tiết nằm trong `docs/`.
 
 ## Baselines
 
-| Baseline | Algorithm | Dataset | Model | Status |
-| --- | --- | --- | --- | --- |
-| FedAvg MNIST CNN | FedAvg | MNIST | CNN nhỏ cho ảnh 28x28 | Implemented |
-| FedAvgM MNIST CNN | FedAvgM | MNIST | CNN nhỏ cho ảnh 28x28 | Implemented |
-| FedProx MNIST CNN | FedProx | MNIST | CNN nhỏ cho ảnh 28x28 | Implemented |
-| SCAFFOLD MNIST CNN | SCAFFOLD | MNIST | CNN nhỏ cho ảnh 28x28 | Implemented |
-| MOON MNIST CNN | MOON | MNIST | CNN nhỏ cho ảnh 28x28 | Implemented |
+| Baseline | Year | Paper |
+| --- | --- | --- |
+| FedAvg | 2017 | [Communication-Efficient Learning of Deep Networks from Decentralized Data](https://arxiv.org/abs/1602.05629) |
+| FedAvgM | 2021 | [Adaptive Federated Optimization](https://arxiv.org/abs/2003.00295) |
+| FedProx | 2020 | [Federated Optimization in Heterogeneous Networks](https://arxiv.org/abs/1812.06127) |
+| SCAFFOLD | 2020 | [SCAFFOLD: Stochastic Controlled Averaging for Federated Learning](https://arxiv.org/abs/1910.06378) |
+| MOON | 2021 | [Model-Contrastive Federated Learning](https://arxiv.org/abs/2103.16257) |
 
 ## Datasets
 
