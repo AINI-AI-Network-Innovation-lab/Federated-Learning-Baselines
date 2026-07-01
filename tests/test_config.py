@@ -38,6 +38,19 @@ class ExperimentConfigTest(unittest.TestCase):
                 "moon-temperature": 0.7,
                 "server-learning-rate": 0.8,
                 "server-momentum": 0.95,
+                "fedadp-alpha": 4.0,
+                "feddyn-alpha": 0.2,
+                "feddc-alpha": 0.05,
+                "fedexp-epsilon": 0.01,
+                "fedproto-lambda": 0.2,
+                "fedntd-beta": 1.2,
+                "fedntd-temperature": 2.0,
+                "ditto-lambda": 0.3,
+                "pfedme-lambda": 15.0,
+                "pfedme-beta": 0.7,
+                "pfedme-personal-learning-rate": 0.02,
+                "pfedme-personal-steps": 4,
+                "client-test-fraction": 0.25,
                 "fednova-server-momentum": 0.25,
                 "fedper-personal-layers": 2,
                 "fedrep-personal-layers": 2,
@@ -63,6 +76,19 @@ class ExperimentConfigTest(unittest.TestCase):
         self.assertEqual(config.moon_temperature, 0.7)
         self.assertEqual(config.server_learning_rate, 0.8)
         self.assertEqual(config.server_momentum, 0.95)
+        self.assertEqual(config.fedadp_alpha, 4.0)
+        self.assertEqual(config.feddyn_alpha, 0.2)
+        self.assertEqual(config.feddc_alpha, 0.05)
+        self.assertEqual(config.fedexp_epsilon, 0.01)
+        self.assertEqual(config.fedproto_lambda, 0.2)
+        self.assertEqual(config.fedntd_beta, 1.2)
+        self.assertEqual(config.fedntd_temperature, 2.0)
+        self.assertEqual(config.ditto_lambda, 0.3)
+        self.assertEqual(config.pfedme_lambda, 15.0)
+        self.assertEqual(config.pfedme_beta, 0.7)
+        self.assertEqual(config.pfedme_personal_learning_rate, 0.02)
+        self.assertEqual(config.pfedme_personal_steps, 4)
+        self.assertEqual(config.client_test_fraction, 0.25)
         self.assertEqual(config.fednova_server_momentum, 0.25)
         self.assertEqual(config.fedper_personal_layers, 2)
         self.assertEqual(config.fedrep_personal_layers, 2)
@@ -96,6 +122,54 @@ class ExperimentConfigTest(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "server-momentum must be non-negative"):
             ExperimentConfig.from_run_config({"server-momentum": -0.1})
+
+        with self.assertRaisesRegex(ValueError, "fedadp-alpha must be positive"):
+            ExperimentConfig.from_run_config({"fedadp-alpha": 0.0})
+
+        with self.assertRaisesRegex(ValueError, "feddyn-alpha must be positive"):
+            ExperimentConfig.from_run_config({"feddyn-alpha": 0.0})
+
+        with self.assertRaisesRegex(ValueError, "feddc-alpha must be positive"):
+            ExperimentConfig.from_run_config({"feddc-alpha": 0.0})
+
+        with self.assertRaisesRegex(ValueError, "fedexp-epsilon must be non-negative"):
+            ExperimentConfig.from_run_config({"fedexp-epsilon": -0.1})
+
+        with self.assertRaisesRegex(ValueError, "fedproto-lambda must be non-negative"):
+            ExperimentConfig.from_run_config({"fedproto-lambda": -0.1})
+
+        with self.assertRaisesRegex(ValueError, "fedntd-beta must be non-negative"):
+            ExperimentConfig.from_run_config({"fedntd-beta": -0.1})
+
+        with self.assertRaisesRegex(ValueError, "fedntd-temperature must be positive"):
+            ExperimentConfig.from_run_config({"fedntd-temperature": 0.0})
+
+        with self.assertRaisesRegex(ValueError, "ditto-lambda must be non-negative"):
+            ExperimentConfig.from_run_config({"ditto-lambda": -0.1})
+
+        with self.assertRaisesRegex(ValueError, "pfedme-lambda must be positive"):
+            ExperimentConfig.from_run_config({"pfedme-lambda": 0.0})
+
+        with self.assertRaisesRegex(ValueError, "pfedme-beta must be positive"):
+            ExperimentConfig.from_run_config({"pfedme-beta": 0.0})
+
+        with self.assertRaisesRegex(ValueError, "pfedme-beta must be in"):
+            ExperimentConfig.from_run_config({"pfedme-beta": 1.1})
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "pfedme-personal-learning-rate must be positive",
+        ):
+            ExperimentConfig.from_run_config({"pfedme-personal-learning-rate": 0.0})
+
+        with self.assertRaisesRegex(ValueError, "pfedme-personal-steps must be positive"):
+            ExperimentConfig.from_run_config({"pfedme-personal-steps": 0})
+
+        with self.assertRaisesRegex(ValueError, "client-test-fraction must be in"):
+            ExperimentConfig.from_run_config({"client-test-fraction": 0.0})
+
+        with self.assertRaisesRegex(ValueError, "client-test-fraction must be in"):
+            ExperimentConfig.from_run_config({"client-test-fraction": 1.0})
 
         with self.assertRaisesRegex(ValueError, "fednova-server-momentum must be non-negative"):
             ExperimentConfig.from_run_config({"fednova-server-momentum": -0.1})

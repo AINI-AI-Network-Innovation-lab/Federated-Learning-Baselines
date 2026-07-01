@@ -29,6 +29,9 @@ src/fl_baselines/
 6. Tạo Flower strategy từ algorithm builder.
 7. Trả về `ServerAppComponents(strategy=..., config=...)`.
 
+Server evaluation luôn dùng server-side test split qua `build_server_loader(...)`.
+Metric trả về từ evaluation gồm `accuracy`, `precision`, `recall`, và `f1`, trong đó `precision`/`recall`/`f1` dùng macro averaging cho multi-class classification.
+
 ## Luồng Chạy Client
 
 `src/fl_baselines/app/client_app.py` là entrypoint client của Flower:
@@ -40,6 +43,9 @@ src/fl_baselines/
 5. Tạo dataloader cho client partition.
 6. Tạo model riêng cho client.
 7. Wrap bằng `TorchFlowerClient`.
+
+Client-side evaluation dùng held-out client test split được tách từ chính local partition train của client theo `client-test-fraction`.
+Client eval dùng cùng evaluation helper với server eval, nên cũng report `accuracy`, macro `precision`, macro `recall`, và macro `f1`.
 
 ## Registry
 
@@ -62,7 +68,7 @@ algorithm = ALGORITHMS.get(config.algorithm)
 Nếu key sai, framework sẽ fail rõ ràng, ví dụ:
 
 ```text
-Unknown algorithm 'custom'. Available: fedavg, fedavgm, fednova, fedper, fedrep, fedprox, moon, scaffold
+Unknown algorithm 'custom'. Available: ditto, fedadp, fedavg, fedavgm, feddc, feddyn, fedexp, fedntd, fednova, fedper, fedproto, fedprox, fedrep, moon, pfedme, scaffold
 ```
 
 ## Config
@@ -78,6 +84,7 @@ Unknown algorithm 'custom'. Available: fedavg, fedavgm, fednova, fedper, fedrep,
 | `num_supernodes` | Số client/supernode logic |
 | `fraction_train` | Tỷ lệ client tham gia train mỗi round |
 | `fraction_evaluate` | Tỷ lệ client tham gia evaluate mỗi round |
+| `client_test_fraction` | Tỷ lệ dữ liệu local của mỗi client được hold out cho client test eval |
 | `local_epochs` | Số epoch local training |
 | `batch_size` | Batch size cho dataloader |
 | `learning_rate` | Learning rate local optimizer |
@@ -86,6 +93,18 @@ Unknown algorithm 'custom'. Available: fedavg, fedavgm, fednova, fedper, fedrep,
 | `moon_temperature` | Temperature cho contrastive logits của MOON |
 | `server_learning_rate` | Learning rate của server optimizer cho FedAvgM |
 | `server_momentum` | Momentum của server optimizer cho FedAvgM |
+| `fedadp_alpha` | Hằng số alpha cho Gompertz mapping trong FedAdp |
+| `feddyn_alpha` | Hệ số dynamic regularization cho FedDyn |
+| `feddc_alpha` | Hệ số drift penalty trong FedDC |
+| `fedexp_epsilon` | Hằng số epsilon ổn định mẫu số khi FedExP tính adaptive server extrapolation step |
+| `fedproto_lambda` | Hệ số regularization kéo local prototypes về global prototypes trong FedProto |
+| `fedntd_beta` | Hệ số not-true distillation loss trong FedNTD |
+| `fedntd_temperature` | Temperature dùng cho not-true softmax trong FedNTD |
+| `ditto_lambda` | Hệ số regularization kéo personalized model về global model trong Ditto |
+| `pfedme_lambda` | Hệ số proximal regularization giữa personalized model và reference model trong pFedMe |
+| `pfedme_beta` | Hệ số server-side mixing của pFedMe |
+| `pfedme_personal_learning_rate` | Learning rate cho inner personalized optimization của pFedMe |
+| `pfedme_personal_steps` | Số bước inner personalized update trong mỗi local step của pFedMe |
 | `fednova_server_momentum` | Momentum phía server cho FedNova normalized updates |
 | `fedper_personal_layers` | Số module cuối có tham số được giữ local cho FedPer |
 | `fedrep_personal_layers` | Số module cuối có tham số được giữ local cho FedRep |

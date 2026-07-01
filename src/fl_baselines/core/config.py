@@ -37,6 +37,7 @@ class ExperimentConfig:
     num_supernodes: int = 10
     fraction_train: float = 1.0
     fraction_evaluate: float = 1.0
+    client_test_fraction: float = 0.2
     local_epochs: int = 1
     batch_size: int = 32
     learning_rate: float = 0.01
@@ -45,6 +46,18 @@ class ExperimentConfig:
     moon_temperature: float = 0.5
     server_learning_rate: float = 1.0
     server_momentum: float = 0.9
+    fedadp_alpha: float = 5.0
+    feddyn_alpha: float = 0.1
+    feddc_alpha: float = 0.01
+    fedexp_epsilon: float = 0.001
+    fedproto_lambda: float = 1.0
+    fedntd_beta: float = 1.0
+    fedntd_temperature: float = 1.0
+    ditto_lambda: float = 0.1
+    pfedme_lambda: float = 15.0
+    pfedme_beta: float = 1.0
+    pfedme_personal_learning_rate: float = 0.01
+    pfedme_personal_steps: int = 5
     fednova_server_momentum: float = 0.0
     fedper_personal_layers: int = 1
     fedrep_personal_layers: int = 1
@@ -75,6 +88,11 @@ class ExperimentConfig:
             fraction_evaluate=_as_float(
                 run_config, "fraction-evaluate", cls.fraction_evaluate
             ),
+            client_test_fraction=_as_float(
+                run_config,
+                "client-test-fraction",
+                cls.client_test_fraction,
+            ),
             local_epochs=_as_int(run_config, "local-epochs", cls.local_epochs),
             batch_size=_as_int(run_config, "batch-size", cls.batch_size),
             learning_rate=_as_float(run_config, "learning-rate", cls.learning_rate),
@@ -92,6 +110,66 @@ class ExperimentConfig:
                 run_config,
                 "server-momentum",
                 cls.server_momentum,
+            ),
+            fedadp_alpha=_as_float(
+                run_config,
+                "fedadp-alpha",
+                cls.fedadp_alpha,
+            ),
+            feddyn_alpha=_as_float(
+                run_config,
+                "feddyn-alpha",
+                cls.feddyn_alpha,
+            ),
+            feddc_alpha=_as_float(
+                run_config,
+                "feddc-alpha",
+                cls.feddc_alpha,
+            ),
+            fedexp_epsilon=_as_float(
+                run_config,
+                "fedexp-epsilon",
+                cls.fedexp_epsilon,
+            ),
+            fedproto_lambda=_as_float(
+                run_config,
+                "fedproto-lambda",
+                cls.fedproto_lambda,
+            ),
+            fedntd_beta=_as_float(
+                run_config,
+                "fedntd-beta",
+                cls.fedntd_beta,
+            ),
+            fedntd_temperature=_as_float(
+                run_config,
+                "fedntd-temperature",
+                cls.fedntd_temperature,
+            ),
+            ditto_lambda=_as_float(
+                run_config,
+                "ditto-lambda",
+                cls.ditto_lambda,
+            ),
+            pfedme_lambda=_as_float(
+                run_config,
+                "pfedme-lambda",
+                cls.pfedme_lambda,
+            ),
+            pfedme_beta=_as_float(
+                run_config,
+                "pfedme-beta",
+                cls.pfedme_beta,
+            ),
+            pfedme_personal_learning_rate=_as_float(
+                run_config,
+                "pfedme-personal-learning-rate",
+                cls.pfedme_personal_learning_rate,
+            ),
+            pfedme_personal_steps=_as_int(
+                run_config,
+                "pfedme-personal-steps",
+                cls.pfedme_personal_steps,
             ),
             fednova_server_momentum=_as_float(
                 run_config,
@@ -155,6 +233,32 @@ class ExperimentConfig:
             raise ValueError("server-learning-rate must be positive")
         if self.server_momentum < 0:
             raise ValueError("server-momentum must be non-negative")
+        if self.fedadp_alpha <= 0:
+            raise ValueError("fedadp-alpha must be positive")
+        if self.feddyn_alpha <= 0:
+            raise ValueError("feddyn-alpha must be positive")
+        if self.feddc_alpha <= 0:
+            raise ValueError("feddc-alpha must be positive")
+        if self.fedexp_epsilon < 0:
+            raise ValueError("fedexp-epsilon must be non-negative")
+        if self.fedproto_lambda < 0:
+            raise ValueError("fedproto-lambda must be non-negative")
+        if self.fedntd_beta < 0:
+            raise ValueError("fedntd-beta must be non-negative")
+        if self.fedntd_temperature <= 0:
+            raise ValueError("fedntd-temperature must be positive")
+        if self.ditto_lambda < 0:
+            raise ValueError("ditto-lambda must be non-negative")
+        if self.pfedme_lambda <= 0:
+            raise ValueError("pfedme-lambda must be positive")
+        if self.pfedme_beta <= 0:
+            raise ValueError("pfedme-beta must be positive")
+        if self.pfedme_beta > 1:
+            raise ValueError("pfedme-beta must be in (0, 1]")
+        if self.pfedme_personal_learning_rate <= 0:
+            raise ValueError("pfedme-personal-learning-rate must be positive")
+        if self.pfedme_personal_steps <= 0:
+            raise ValueError("pfedme-personal-steps must be positive")
         if self.fednova_server_momentum < 0:
             raise ValueError("fednova-server-momentum must be non-negative")
         if self.fedper_personal_layers <= 0:
@@ -171,6 +275,8 @@ class ExperimentConfig:
             raise ValueError("fraction-train must be in (0, 1]")
         if not 0 < self.fraction_evaluate <= 1:
             raise ValueError("fraction-evaluate must be in (0, 1]")
+        if not 0 < self.client_test_fraction < 1:
+            raise ValueError("client-test-fraction must be in (0, 1)")
         if self.partitioner not in {"iid", "dirichlet"}:
             raise ValueError("partitioner must be one of: iid, dirichlet")
         if self.dirichlet_alpha <= 0:

@@ -44,7 +44,7 @@ class DatasetBuilderTest(unittest.TestCase):
         )
 
         self.assertGreater(len(loaders.train.dataset), 0)
-        self.assertGreater(len(loaders.validation.dataset), 0)
+        self.assertGreater(len(loaders.test.dataset), 0)
 
     def test_torchvision_builder_rejects_invalid_partition_id(self) -> None:
         config = ExperimentConfig.from_run_config({})
@@ -62,6 +62,43 @@ class DatasetBuilderTest(unittest.TestCase):
         loader = FakeVisionBuilder().build_server_loader(config)
 
         self.assertEqual(len(loader.dataset), 3)
+
+    def test_torchvision_builder_splits_client_partition_into_train_and_test(self) -> None:
+        config = ExperimentConfig.from_run_config(
+            {"batch-size": 2, "client-test-fraction": 0.5, "seed": 7}
+        )
+
+        loaders = FakeVisionBuilder().build_client_loaders(
+            config,
+            partition_id=0,
+            num_partitions=2,
+        )
+
+        self.assertGreater(len(loaders.train.dataset), 0)
+        self.assertGreater(len(loaders.test.dataset), 0)
+        self.assertEqual(
+            len(loaders.train.dataset) + len(loaders.test.dataset),
+            3,
+        )
+
+    def test_torchvision_builder_client_split_is_deterministic(self) -> None:
+        config = ExperimentConfig.from_run_config(
+            {"batch-size": 2, "client-test-fraction": 0.5, "seed": 11}
+        )
+
+        first = FakeVisionBuilder().build_client_loaders(
+            config,
+            partition_id=0,
+            num_partitions=2,
+        )
+        second = FakeVisionBuilder().build_client_loaders(
+            config,
+            partition_id=0,
+            num_partitions=2,
+        )
+
+        self.assertEqual(len(first.train.dataset), len(second.train.dataset))
+        self.assertEqual(len(first.test.dataset), len(second.test.dataset))
 
 
 if __name__ == "__main__":

@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 @dataclass(frozen=True)
 class ClientDataLoaders:
     train: "DataLoader"
-    validation: "DataLoader"
+    test: "DataLoader"
 
 
 MetricDict = dict[str, bool | bytes | float | int | str]

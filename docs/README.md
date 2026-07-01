@@ -25,6 +25,11 @@ Thư mục `docs/` chứa tài liệu chi tiết cho framework Federated Learnin
 | [extending-baselines.md](extending-baselines.md) | Quy trình thêm dataset/model/algorithm mới và baseline hoàn chỉnh. |
 | [testing-and-artifacts.md](testing-and-artifacts.md) | Unit tests, compile check, metrics, checkpoints và artifacts. |
 
+Evaluation semantics mặc định:
+
+- server eval dùng server test set
+- client eval dùng held-out test split được tách từ local partition của từng client
+
 ## Algorithms
 
 Mỗi algorithm có một file riêng trong `docs/algorithms/` để dễ mở rộng:
@@ -34,7 +39,15 @@ Mỗi algorithm có một file riêng trong `docs/algorithms/` để dễ mở r
 | [algorithms/index.md](algorithms/index.md) | Mục lục algorithm. |
 | [algorithms/fedavg.md](algorithms/fedavg.md) | FedAvg strategy builder và config liên quan. |
 | [algorithms/fedavgm.md](algorithms/fedavgm.md) | FedAvgM và server momentum. |
+| [algorithms/fedadp.md](algorithms/fedadp.md) | FedAdp adaptive weighting theo góc giữa local/global update. |
+| [algorithms/ditto.md](algorithms/ditto.md) | Ditto personalized local model regularized toward the global model. |
+| [algorithms/feddc.md](algorithms/feddc.md) | FedDC local drift decoupling với persisted client drift/update state và server average update state. |
+| [algorithms/feddyn.md](algorithms/feddyn.md) | FedDyn dynamic regularization với persisted client state và server correction state. |
+| [algorithms/fedexp.md](algorithms/fedexp.md) | FedExP adaptive server extrapolation step trên pseudo-gradients, giữ local training path như FedAvg. |
+| [algorithms/fedntd.md](algorithms/fedntd.md) | FedNTD not-true distillation từ global teacher snapshot trong local training. |
+| [algorithms/fedproto.md](algorithms/fedproto.md) | FedProto prototype aggregation với embedding regularization, giữ classifier/eval pipeline hiện tại. |
 | [algorithms/fednova.md](algorithms/fednova.md) | FedNova normalized averaging và client update metrics. |
+| [algorithms/pfedme.md](algorithms/pfedme.md) | pFedMe Moreau-style personalization với persisted personalized state và server beta mixing. |
 | [algorithms/fedper.md](algorithms/fedper.md) | FedPer shared base aggregation và personalized local head. |
 | [algorithms/fedrep.md](algorithms/fedrep.md) | FedRep shared representation aggregation và two-phase local training. |
 | [algorithms/fedprox.md](algorithms/fedprox.md) | FedProx strategy và proximal term ở client training. |

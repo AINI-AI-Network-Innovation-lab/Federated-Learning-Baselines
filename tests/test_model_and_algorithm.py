@@ -16,6 +16,14 @@ from flwr.server.strategy import FedAvg, FedAvgM, FedProx
 from fl_baselines.clients.torch_client import TorchFlowerClient, get_model_parameters
 from fl_baselines.algorithms.fedavg import FedAvgBuilder
 from fl_baselines.algorithms.fedavgm import FedAvgMBuilder
+from fl_baselines.algorithms.fedadp import FedAdpBuilder, FedAdpStrategy
+from fl_baselines.algorithms.ditto import DittoBuilder
+from fl_baselines.algorithms.feddc import FedDCBuilder, FedDCStrategy
+from fl_baselines.algorithms.feddyn import FedDynBuilder, FedDynStrategy
+from fl_baselines.algorithms.fedexp import FedExPBuilder, FedExPStrategy
+from fl_baselines.algorithms.fedntd import FedNTDBuilder
+from fl_baselines.algorithms.fedproto import FedProtoBuilder, FedProtoStrategy
+from fl_baselines.algorithms.pfedme import PFedMeBuilder, PFedMeStrategy
 from fl_baselines.algorithms.fedper import FedPerBuilder, FedPerStrategy
 from fl_baselines.algorithms.fedrep import FedRepBuilder, FedRepStrategy
 from fl_baselines.algorithms.fednova import FedNovaBuilder, FedNovaStrategy
@@ -30,6 +38,8 @@ from fl_baselines.models.mnist_cnn import MnistCnnBuilder
 from fl_baselines.models.resnet import ResNet9Builder, ResNet18Builder, ResNet34Builder
 from fl_baselines.models.inception import InceptionBuilder
 from fl_baselines.training.evaluate import evaluate_model
+from fl_baselines.training.features import extract_features
+from fl_baselines.training.fedntd import train_fedntd_client
 from fl_baselines.training.moon import train_moon_client
 from fl_baselines.training.scaffold import train_scaffold_client
 from fl_baselines.training.train import train_one_client
@@ -55,6 +65,80 @@ class ModelAndAlgorithmTest(unittest.TestCase):
 
         self.assertGreaterEqual(loss, 0.0)
         self.assertIn("accuracy", metrics)
+        self.assertIn("precision", metrics)
+        self.assertIn("recall", metrics)
+        self.assertIn("f1", metrics)
+
+    def test_evaluate_model_returns_macro_classification_metrics(self) -> None:
+        class FixedLogitModel(torch.nn.Module):
+            def __init__(self) -> None:
+                super().__init__()
+                self.register_buffer(
+                    "logits",
+                    torch.tensor(
+                        [
+                            [5.0, 1.0, 0.0],
+                            [1.0, 5.0, 0.0],
+                            [0.0, 5.0, 1.0],
+                            [1.0, 0.0, 5.0],
+                        ],
+                        dtype=torch.float32,
+                    ),
+                )
+
+            def forward(self, inputs):
+                indices = inputs.squeeze(-1).long()
+                return self.logits[indices]
+
+        loader = DataLoader(
+            TensorDataset(
+                torch.arange(4, dtype=torch.float32).unsqueeze(-1),
+                torch.tensor([0, 1, 2, 2], dtype=torch.long),
+            ),
+            batch_size=2,
+        )
+
+        _, metrics = evaluate_model(FixedLogitModel(), loader, device="cpu")
+
+        self.assertAlmostEqual(metrics["accuracy"], 0.75, places=6)
+        self.assertAlmostEqual(metrics["precision"], 5.0 / 6.0, places=6)
+        self.assertAlmostEqual(metrics["recall"], 5.0 / 6.0, places=6)
+        self.assertAlmostEqual(metrics["f1"], 7.0 / 9.0, places=6)
+
+    def test_evaluate_model_handles_missing_class_predictions_in_macro_metrics(self) -> None:
+        class MissingPredictionModel(torch.nn.Module):
+            def __init__(self) -> None:
+                super().__init__()
+                self.register_buffer(
+                    "logits",
+                    torch.tensor(
+                        [
+                            [5.0, 1.0, 0.0],
+                            [5.0, 1.0, 0.0],
+                            [0.0, 5.0, 1.0],
+                        ],
+                        dtype=torch.float32,
+                    ),
+                )
+
+            def forward(self, inputs):
+                indices = inputs.squeeze(-1).long()
+                return self.logits[indices]
+
+        loader = DataLoader(
+            TensorDataset(
+                torch.arange(3, dtype=torch.float32).unsqueeze(-1),
+                torch.tensor([0, 2, 2], dtype=torch.long),
+            ),
+            batch_size=3,
+        )
+
+        _, metrics = evaluate_model(MissingPredictionModel(), loader, device="cpu")
+
+        self.assertAlmostEqual(metrics["accuracy"], 1.0 / 3.0, places=6)
+        self.assertAlmostEqual(metrics["precision"], 1.0 / 6.0, places=6)
+        self.assertAlmostEqual(metrics["recall"], 1.0 / 3.0, places=6)
+        self.assertAlmostEqual(metrics["f1"], 2.0 / 9.0, places=6)
 
     def test_mnist_cnn_forward_shape(self) -> None:
         model = MnistCnnBuilder().build_model(ExperimentConfig.from_run_config({}))
@@ -148,6 +232,411 @@ class ModelAndAlgorithmTest(unittest.TestCase):
         self.assertEqual(strategy.min_fit_clients, 4)
         self.assertEqual(strategy.server_learning_rate, 0.8)
         self.assertEqual(strategy.server_momentum, 0.95)
+
+    def test_fedadp_builder_creates_strategy(self) -> None:
+        config = ExperimentConfig.from_run_config(
+            {
+                "num-supernodes": 4,
+                "fedadp-alpha": 4.0,
+            }
+        )
+        model = MnistCnnBuilder().build_model(config)
+
+        strategy = FedAdpBuilder().build_strategy(config, model, evaluate_fn=None)
+        fit_config = strategy.on_fit_config_fn(1)
+
+        self.assertIsInstance(strategy, FedAdpStrategy)
+        self.assertEqual(strategy.min_fit_clients, 4)
+        self.assertEqual(strategy.alpha, 4.0)
+        self.assertEqual(fit_config["algorithm"], "fedadp")
+
+    def test_fedadp_builder_supports_current_models(self) -> None:
+        cases = [
+            (MnistCnnBuilder(), {}),
+            (LeNetBuilder(), {}),
+            (
+                ResNet9Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                ResNet18Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                ResNet34Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                InceptionBuilder(),
+                {"input-channels": 3, "input-height": 75, "input-width": 75},
+            ),
+        ]
+
+        for model_builder, overrides in cases:
+            with self.subTest(model=model_builder.name):
+                config = ExperimentConfig.from_run_config(
+                    {"algorithm": "fedadp", "num-supernodes": 2, **overrides}
+                )
+                model = model_builder.build_model(config)
+
+                strategy = FedAdpBuilder().build_strategy(
+                    config,
+                    model,
+                    evaluate_fn=None,
+                )
+
+                self.assertIsInstance(strategy, FedAdpStrategy)
+
+    def test_fedexp_builder_creates_strategy(self) -> None:
+        config = ExperimentConfig.from_run_config(
+            {"num-supernodes": 4, "fedexp-epsilon": 0.01}
+        )
+        model = MnistCnnBuilder().build_model(config)
+
+        strategy = FedExPBuilder().build_strategy(config, model, evaluate_fn=None)
+        fit_config = strategy.on_fit_config_fn(1)
+
+        self.assertIsInstance(strategy, FedExPStrategy)
+        self.assertEqual(strategy.min_fit_clients, 4)
+        self.assertEqual(strategy.epsilon, 0.01)
+        self.assertEqual(fit_config["algorithm"], "fedexp")
+
+    def test_fedexp_builder_supports_current_models(self) -> None:
+        cases = [
+            (MnistCnnBuilder(), {}),
+            (LeNetBuilder(), {}),
+            (
+                ResNet9Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                ResNet18Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                ResNet34Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                InceptionBuilder(),
+                {"input-channels": 3, "input-height": 75, "input-width": 75},
+            ),
+        ]
+
+        for model_builder, overrides in cases:
+            with self.subTest(model=model_builder.name):
+                config = ExperimentConfig.from_run_config(
+                    {"algorithm": "fedexp", "num-supernodes": 2, **overrides}
+                )
+                model = model_builder.build_model(config)
+                strategy = FedExPBuilder().build_strategy(config, model, evaluate_fn=None)
+                self.assertIsInstance(strategy, FedExPStrategy)
+
+    def test_feddyn_builder_creates_strategy(self) -> None:
+        config = ExperimentConfig.from_run_config(
+            {"num-supernodes": 4, "feddyn-alpha": 0.2}
+        )
+        model = MnistCnnBuilder().build_model(config)
+
+        strategy = FedDynBuilder().build_strategy(config, model, evaluate_fn=None)
+        fit_config = strategy.on_fit_config_fn(1)
+
+        self.assertIsInstance(strategy, FedDynStrategy)
+        self.assertEqual(strategy.min_fit_clients, 4)
+        self.assertEqual(strategy.alpha, 0.2)
+        self.assertEqual(fit_config["algorithm"], "feddyn")
+        self.assertEqual(fit_config["feddyn_alpha"], 0.2)
+
+    def test_feddyn_builder_supports_current_models(self) -> None:
+        cases = [
+            (MnistCnnBuilder(), {}),
+            (LeNetBuilder(), {}),
+            (
+                ResNet9Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                ResNet18Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                ResNet34Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                InceptionBuilder(),
+                {"input-channels": 3, "input-height": 75, "input-width": 75},
+            ),
+        ]
+
+        for model_builder, overrides in cases:
+            with self.subTest(model=model_builder.name):
+                config = ExperimentConfig.from_run_config(
+                    {"algorithm": "feddyn", "num-supernodes": 2, **overrides}
+                )
+                model = model_builder.build_model(config)
+
+                strategy = FedDynBuilder().build_strategy(
+                    config,
+                    model,
+                    evaluate_fn=None,
+                )
+
+                self.assertIsInstance(strategy, FedDynStrategy)
+
+    def test_feddc_builder_creates_strategy(self) -> None:
+        config = ExperimentConfig.from_run_config(
+            {"num-supernodes": 4, "feddc-alpha": 0.05}
+        )
+        model = MnistCnnBuilder().build_model(config)
+
+        strategy = FedDCBuilder().build_strategy(config, model, evaluate_fn=None)
+        fit_config = strategy.on_fit_config_fn(1)
+
+        self.assertIsInstance(strategy, FedDCStrategy)
+        self.assertEqual(strategy.min_fit_clients, 4)
+        self.assertEqual(strategy.alpha, 0.05)
+        self.assertEqual(fit_config["algorithm"], "feddc")
+        self.assertEqual(fit_config["feddc_alpha"], 0.05)
+
+    def test_feddc_builder_supports_current_models(self) -> None:
+        cases = [
+            (MnistCnnBuilder(), {}),
+            (LeNetBuilder(), {}),
+            (
+                ResNet9Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                ResNet18Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                ResNet34Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                InceptionBuilder(),
+                {"input-channels": 3, "input-height": 75, "input-width": 75},
+            ),
+        ]
+
+        for model_builder, overrides in cases:
+            with self.subTest(model=model_builder.name):
+                config = ExperimentConfig.from_run_config(
+                    {"algorithm": "feddc", "num-supernodes": 2, **overrides}
+                )
+                model = model_builder.build_model(config)
+                strategy = FedDCBuilder().build_strategy(config, model, evaluate_fn=None)
+                self.assertEqual(strategy.on_fit_config_fn(1)["algorithm"], "feddc")
+
+    def test_fedproto_builder_creates_strategy(self) -> None:
+        config = ExperimentConfig.from_run_config(
+            {"num-supernodes": 4, "fedproto-lambda": 0.2}
+        )
+        model = MnistCnnBuilder().build_model(config)
+
+        strategy = FedProtoBuilder().build_strategy(config, model, evaluate_fn=None)
+        fit_config = strategy.on_fit_config_fn(1)
+
+        self.assertIsInstance(strategy, FedProtoStrategy)
+        self.assertEqual(strategy.min_fit_clients, 4)
+        self.assertEqual(fit_config["algorithm"], "fedproto")
+        self.assertEqual(fit_config["fedproto_lambda"], 0.2)
+
+    def test_fedproto_builder_supports_current_models(self) -> None:
+        cases = [
+            (MnistCnnBuilder(), {"input-channels": 1, "input-height": 28, "input-width": 28}),
+            (LeNetBuilder(), {"input-channels": 1, "input-height": 28, "input-width": 28}),
+            (
+                ResNet9Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                ResNet18Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                ResNet34Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                InceptionBuilder(),
+                {"input-channels": 3, "input-height": 75, "input-width": 75},
+            ),
+        ]
+
+        for model_builder, overrides in cases:
+            with self.subTest(model=model_builder.name):
+                config = ExperimentConfig.from_run_config(
+                    {"algorithm": "fedproto", "num-supernodes": 2, "num-classes": 7, **overrides}
+                )
+                model = model_builder.build_model(config)
+                strategy = FedProtoBuilder().build_strategy(config, model, evaluate_fn=None)
+                self.assertEqual(strategy.on_fit_config_fn(1)["algorithm"], "fedproto")
+
+    def test_fedproto_feature_extraction_supports_current_models(self) -> None:
+        cases = [
+            (MnistCnnBuilder(), {"input-channels": 1, "input-height": 28, "input-width": 28}, (2, 1, 28, 28)),
+            (LeNetBuilder(), {"input-channels": 1, "input-height": 28, "input-width": 28}, (2, 1, 28, 28)),
+            (ResNet9Builder(), {"input-channels": 3, "input-height": 32, "input-width": 32}, (2, 3, 32, 32)),
+            (ResNet18Builder(), {"input-channels": 3, "input-height": 32, "input-width": 32}, (2, 3, 32, 32)),
+            (ResNet34Builder(), {"input-channels": 3, "input-height": 32, "input-width": 32}, (2, 3, 32, 32)),
+            (InceptionBuilder(), {"input-channels": 3, "input-height": 75, "input-width": 75}, (2, 3, 75, 75)),
+        ]
+
+        for model_builder, overrides, input_shape in cases:
+            with self.subTest(model=model_builder.name):
+                config = ExperimentConfig.from_run_config({"num-classes": 7, **overrides})
+                model = model_builder.build_model(config)
+                inputs = torch.zeros(*input_shape)
+                features = extract_features(model, inputs)
+                self.assertEqual(features.ndim, 2)
+                self.assertEqual(features.shape[0], 2)
+
+    def test_fedntd_builder_creates_strategy(self) -> None:
+        config = ExperimentConfig.from_run_config(
+            {"num-supernodes": 4, "fedntd-beta": 1.2, "fedntd-temperature": 2.0}
+        )
+        model = MnistCnnBuilder().build_model(config)
+
+        strategy = FedNTDBuilder().build_strategy(config, model, evaluate_fn=None)
+        fit_config = strategy.on_fit_config_fn(1)
+
+        self.assertEqual(strategy.min_fit_clients, 4)
+        self.assertEqual(fit_config["algorithm"], "fedntd")
+        self.assertEqual(fit_config["fedntd_beta"], 1.2)
+        self.assertEqual(fit_config["fedntd_temperature"], 2.0)
+
+    def test_fedntd_builder_supports_current_models(self) -> None:
+        cases = [
+            (MnistCnnBuilder(), {}),
+            (LeNetBuilder(), {}),
+            (
+                ResNet9Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                ResNet18Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                ResNet34Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                InceptionBuilder(),
+                {"input-channels": 3, "input-height": 75, "input-width": 75},
+            ),
+        ]
+
+        for model_builder, overrides in cases:
+            with self.subTest(model=model_builder.name):
+                config = ExperimentConfig.from_run_config(
+                    {"algorithm": "fedntd", "num-supernodes": 2, **overrides}
+                )
+                model = model_builder.build_model(config)
+                strategy = FedNTDBuilder().build_strategy(config, model, evaluate_fn=None)
+                self.assertEqual(strategy.on_fit_config_fn(1)["algorithm"], "fedntd")
+
+    def test_ditto_builder_creates_strategy(self) -> None:
+        config = ExperimentConfig.from_run_config(
+            {"num-supernodes": 4, "ditto-lambda": 0.3}
+        )
+        model = MnistCnnBuilder().build_model(config)
+
+        strategy = DittoBuilder().build_strategy(config, model, evaluate_fn=None)
+        fit_config = strategy.on_fit_config_fn(1)
+
+        self.assertEqual(strategy.min_fit_clients, 4)
+        self.assertEqual(fit_config["algorithm"], "ditto")
+        self.assertEqual(fit_config["ditto_lambda"], 0.3)
+
+    def test_ditto_builder_supports_current_models(self) -> None:
+        cases = [
+            (MnistCnnBuilder(), {}),
+            (LeNetBuilder(), {}),
+            (
+                ResNet9Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                ResNet18Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                ResNet34Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                InceptionBuilder(),
+                {"input-channels": 3, "input-height": 75, "input-width": 75},
+            ),
+        ]
+
+        for model_builder, overrides in cases:
+            with self.subTest(model=model_builder.name):
+                config = ExperimentConfig.from_run_config(
+                    {"algorithm": "ditto", "num-supernodes": 2, **overrides}
+                )
+                model = model_builder.build_model(config)
+                strategy = DittoBuilder().build_strategy(config, model, evaluate_fn=None)
+                self.assertEqual(strategy.on_fit_config_fn(1)["algorithm"], "ditto")
+
+    def test_pfedme_builder_creates_strategy(self) -> None:
+        config = ExperimentConfig.from_run_config(
+            {
+                "num-supernodes": 4,
+                "pfedme-lambda": 15.0,
+                "pfedme-beta": 0.7,
+                "pfedme-personal-learning-rate": 0.02,
+                "pfedme-personal-steps": 4,
+            }
+        )
+        model = MnistCnnBuilder().build_model(config)
+
+        strategy = PFedMeBuilder().build_strategy(config, model, evaluate_fn=None)
+        fit_config = strategy.on_fit_config_fn(1)
+
+        self.assertIsInstance(strategy, PFedMeStrategy)
+        self.assertEqual(strategy.min_fit_clients, 4)
+        self.assertEqual(strategy.beta, 0.7)
+        self.assertEqual(fit_config["algorithm"], "pfedme")
+        self.assertEqual(fit_config["pfedme_lambda"], 15.0)
+        self.assertEqual(fit_config["pfedme_beta"], 0.7)
+        self.assertEqual(fit_config["pfedme_personal_learning_rate"], 0.02)
+        self.assertEqual(fit_config["pfedme_personal_steps"], 4)
+
+    def test_pfedme_builder_supports_current_models(self) -> None:
+        cases = [
+            (MnistCnnBuilder(), {}),
+            (LeNetBuilder(), {}),
+            (
+                ResNet9Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                ResNet18Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                ResNet34Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                InceptionBuilder(),
+                {"input-channels": 3, "input-height": 75, "input-width": 75},
+            ),
+        ]
+
+        for model_builder, overrides in cases:
+            with self.subTest(model=model_builder.name):
+                config = ExperimentConfig.from_run_config(
+                    {"algorithm": "pfedme", "num-supernodes": 2, **overrides}
+                )
+                model = model_builder.build_model(config)
+                strategy = PFedMeBuilder().build_strategy(config, model, evaluate_fn=None)
+                self.assertEqual(strategy.on_fit_config_fn(1)["algorithm"], "pfedme")
 
     def test_fednova_builder_creates_strategy(self) -> None:
         config = ExperimentConfig.from_run_config(
@@ -330,6 +819,261 @@ class ModelAndAlgorithmTest(unittest.TestCase):
             expected_parameters,
         )
 
+    def test_fedadp_strategy_reweights_clients_by_update_alignment(self) -> None:
+        model = torch.nn.Linear(2, 1, bias=False)
+        initial_parameters = [np.array([[0.0, 0.0]], dtype=np.float32)]
+
+        with tempfile.TemporaryDirectory() as output_dir:
+            strategy = FedAdpStrategy(
+                fraction_fit=1.0,
+                fraction_evaluate=1.0,
+                min_fit_clients=2,
+                min_evaluate_clients=2,
+                min_available_clients=2,
+                initial_parameters=ndarrays_to_parameters(initial_parameters),
+                alpha=5.0,
+                checkpoint_model=model,
+                output_dir=output_dir,
+            )
+            aligned_model = [np.array([[2.0, 0.0]], dtype=np.float32)]
+            orthogonal_model = [np.array([[0.0, 1.0]], dtype=np.float32)]
+            results = [
+                (
+                    None,
+                    FitRes(
+                        Status(Code.OK, ""),
+                        ndarrays_to_parameters(aligned_model),
+                        1,
+                        {},
+                    ),
+                ),
+                (
+                    None,
+                    FitRes(
+                        Status(Code.OK, ""),
+                        ndarrays_to_parameters(orthogonal_model),
+                        1,
+                        {},
+                    ),
+                ),
+            ]
+
+            aggregated_parameters, _ = strategy.aggregate_fit(1, results, [])
+
+        aggregated = parameters_to_ndarrays(aggregated_parameters)[0]
+        fedavg = (aligned_model[0] + orthogonal_model[0]) / 2.0
+        self.assertGreater(aggregated[0, 0], fedavg[0, 0])
+        self.assertLess(aggregated[0, 1], fedavg[0, 1])
+        self.assertAlmostEqual(sum(strategy.last_aggregation_weights), 1.0)
+
+    def test_feddyn_strategy_updates_auxiliary_state_and_global_model(self) -> None:
+        model = torch.nn.Linear(2, 1, bias=False)
+        initial_parameters = [np.array([[10.0, 20.0]], dtype=np.float32)]
+
+        with tempfile.TemporaryDirectory() as output_dir:
+            strategy = FedDynStrategy(
+                fraction_fit=1.0,
+                fraction_evaluate=1.0,
+                min_fit_clients=2,
+                min_evaluate_clients=2,
+                min_available_clients=2,
+                initial_parameters=ndarrays_to_parameters(initial_parameters),
+                alpha=0.5,
+                num_total_clients=4,
+                checkpoint_model=model,
+                output_dir=output_dir,
+            )
+            first_model = [np.array([[8.0, 18.0]], dtype=np.float32)]
+            second_model = [np.array([[6.0, 14.0]], dtype=np.float32)]
+            results = [
+                (
+                    None,
+                    FitRes(
+                        Status(Code.OK, ""),
+                        ndarrays_to_parameters(first_model),
+                        1,
+                        {},
+                    ),
+                ),
+                (
+                    None,
+                    FitRes(
+                        Status(Code.OK, ""),
+                        ndarrays_to_parameters(second_model),
+                        3,
+                        {},
+                    ),
+                ),
+            ]
+
+            aggregated_parameters, _ = strategy.aggregate_fit(1, results, [])
+
+        aggregated = parameters_to_ndarrays(aggregated_parameters)[0]
+        expected_avg = (first_model[0] + 3.0 * second_model[0]) / 4.0
+        expected_h = -0.5 * (
+            (
+                (first_model[0] - initial_parameters[0])
+                + (second_model[0] - initial_parameters[0])
+            )
+            / 4.0
+        )
+        expected_model = expected_avg - expected_h / 0.5
+        np.testing.assert_allclose(aggregated, expected_model)
+        np.testing.assert_allclose(strategy.h[0], expected_h)
+
+    def test_feddc_strategy_updates_average_update_state(self) -> None:
+        model = torch.nn.Linear(2, 1, bias=False)
+        initial_parameters = [np.array([[10.0, 20.0]], dtype=np.float32)]
+        zero_state = [np.zeros_like(initial_parameters[0])]
+
+        with tempfile.TemporaryDirectory() as output_dir:
+            strategy = FedDCStrategy(
+                fraction_fit=1.0,
+                fraction_evaluate=1.0,
+                min_fit_clients=2,
+                min_evaluate_clients=2,
+                min_available_clients=2,
+                initial_parameters=ndarrays_to_parameters(initial_parameters),
+                alpha=0.5,
+                num_total_clients=4,
+                average_update_state=zero_state,
+                checkpoint_model=model,
+                output_dir=output_dir,
+            )
+            first_corrected = [np.array([[9.0, 19.0]], dtype=np.float32)]
+            second_corrected = [np.array([[7.0, 17.0]], dtype=np.float32)]
+            first_update = [np.array([[-1.0, -1.0]], dtype=np.float32)]
+            second_update = [np.array([[-3.0, -3.0]], dtype=np.float32)]
+            results = [
+                (
+                    None,
+                    FitRes(
+                        Status(Code.OK, ""),
+                        ndarrays_to_parameters(first_corrected + first_update),
+                        1,
+                        {},
+                    ),
+                ),
+                (
+                    None,
+                    FitRes(
+                        Status(Code.OK, ""),
+                        ndarrays_to_parameters(second_corrected + second_update),
+                        3,
+                        {},
+                    ),
+                ),
+            ]
+
+            aggregated_parameters, _ = strategy.aggregate_fit(1, results, [])
+
+        expected_model = (first_corrected[0] + 3.0 * second_corrected[0]) / 4.0
+        expected_update = (first_update[0] + 3.0 * second_update[0]) / 4.0
+        np.testing.assert_allclose(parameters_to_ndarrays(aggregated_parameters)[0], expected_model)
+        np.testing.assert_allclose(strategy.average_update_state[0], expected_update)
+
+    def test_fedproto_strategy_aggregates_prototypes_by_class(self) -> None:
+        model = torch.nn.Linear(2, 1, bias=False)
+        initial_parameters = [np.array([[1.0, 2.0]], dtype=np.float32)]
+        initial_prototypes = np.zeros((3, 2), dtype=np.float32)
+
+        with tempfile.TemporaryDirectory() as output_dir:
+            strategy = FedProtoStrategy(
+                fraction_fit=1.0,
+                fraction_evaluate=1.0,
+                min_fit_clients=2,
+                min_evaluate_clients=2,
+                min_available_clients=2,
+                initial_parameters=ndarrays_to_parameters(initial_parameters),
+                num_classes=3,
+                global_prototypes=initial_prototypes,
+                checkpoint_model=model,
+                output_dir=output_dir,
+            )
+            first_model = [np.array([[3.0, 5.0]], dtype=np.float32)]
+            second_model = [np.array([[5.0, 9.0]], dtype=np.float32)]
+            first_proto_sums = np.array([[2.0, 2.0], [0.0, 0.0], [4.0, 4.0]], dtype=np.float32)
+            second_proto_sums = np.array([[6.0, 6.0], [3.0, 3.0], [0.0, 0.0]], dtype=np.float32)
+            first_counts = np.array([1.0, 0.0, 2.0], dtype=np.float32)
+            second_counts = np.array([3.0, 1.0, 0.0], dtype=np.float32)
+            results = [
+                (
+                    None,
+                    FitRes(
+                        Status(Code.OK, ""),
+                        ndarrays_to_parameters(first_model + [first_proto_sums, first_counts]),
+                        1,
+                        {},
+                    ),
+                ),
+                (
+                    None,
+                    FitRes(
+                        Status(Code.OK, ""),
+                        ndarrays_to_parameters(second_model + [second_proto_sums, second_counts]),
+                        3,
+                        {},
+                    ),
+                ),
+            ]
+
+            aggregated_parameters, _ = strategy.aggregate_fit(1, results, [])
+
+        expected_model = (first_model[0] + 3.0 * second_model[0]) / 4.0
+        np.testing.assert_allclose(parameters_to_ndarrays(aggregated_parameters)[0], expected_model)
+        np.testing.assert_allclose(strategy.global_prototypes[0], np.array([2.0, 2.0], dtype=np.float32))
+        np.testing.assert_allclose(strategy.global_prototypes[1], np.array([3.0, 3.0], dtype=np.float32))
+        np.testing.assert_allclose(strategy.global_prototypes[2], np.array([2.0, 2.0], dtype=np.float32))
+
+    def test_fedexp_strategy_applies_extrapolation_step(self) -> None:
+        initial = [np.array([[0.0]], dtype=np.float32)]
+        first_local = [np.array([[1.0]], dtype=np.float32)]
+        second_local = [np.array([[-3.0]], dtype=np.float32)]
+
+        with tempfile.TemporaryDirectory() as output_dir:
+            strategy = FedExPStrategy(
+                fraction_fit=1.0,
+                fraction_evaluate=1.0,
+                min_fit_clients=2,
+                min_evaluate_clients=2,
+                min_available_clients=2,
+                evaluate_fn=None,
+                on_fit_config_fn=lambda _: {"algorithm": "fedexp"},
+                fit_metrics_aggregation_fn=None,
+                evaluate_metrics_aggregation_fn=None,
+                initial_parameters=ndarrays_to_parameters(initial),
+                epsilon=0.0,
+                checkpoint_model=torch.nn.Linear(1, 1, bias=False),
+                output_dir=output_dir,
+            )
+
+            results = [
+                (
+                    object(),
+                    FitRes(
+                        status=Status(code=Code.OK, message=""),
+                        parameters=ndarrays_to_parameters(first_local),
+                        num_examples=1,
+                        metrics={},
+                    ),
+                ),
+                (
+                    object(),
+                    FitRes(
+                        status=Status(code=Code.OK, message=""),
+                        parameters=ndarrays_to_parameters(second_local),
+                        num_examples=1,
+                        metrics={},
+                    ),
+                ),
+            ]
+
+            aggregated_parameters, _ = strategy.aggregate_fit(1, results, [])
+
+        aggregated_arrays = parameters_to_ndarrays(aggregated_parameters)
+        self.assertAlmostEqual(float(aggregated_arrays[0][0][0]), -2.5, places=6)
+        self.assertAlmostEqual(strategy.last_server_step_size, 2.5, places=6)
+
     def test_fedper_strategy_aggregates_only_shared_parameters(self) -> None:
         model = torch.nn.Sequential(torch.nn.Linear(2, 2), torch.nn.Linear(2, 1))
         full_parameters = get_model_parameters(model)
@@ -381,6 +1125,51 @@ class ModelAndAlgorithmTest(unittest.TestCase):
         ):
             np.testing.assert_allclose(aggregated, (first + 3.0 * second) / 4.0)
 
+    def test_pfedme_strategy_mixes_previous_global_with_client_average(self) -> None:
+        model = torch.nn.Linear(2, 1, bias=False)
+        initial_parameters = [np.array([[10.0, 20.0]], dtype=np.float32)]
+
+        with tempfile.TemporaryDirectory() as output_dir:
+            strategy = PFedMeStrategy(
+                fraction_fit=1.0,
+                fraction_evaluate=1.0,
+                min_fit_clients=2,
+                min_evaluate_clients=2,
+                min_available_clients=2,
+                initial_parameters=ndarrays_to_parameters(initial_parameters),
+                beta=0.25,
+                checkpoint_model=model,
+                output_dir=output_dir,
+            )
+            first_model = [np.array([[6.0, 10.0]], dtype=np.float32)]
+            second_model = [np.array([[2.0, 6.0]], dtype=np.float32)]
+            results = [
+                (
+                    None,
+                    FitRes(
+                        Status(Code.OK, ""),
+                        ndarrays_to_parameters(first_model),
+                        1,
+                        {},
+                    ),
+                ),
+                (
+                    None,
+                    FitRes(
+                        Status(Code.OK, ""),
+                        ndarrays_to_parameters(second_model),
+                        3,
+                        {},
+                    ),
+                ),
+            ]
+
+            aggregated_parameters, _ = strategy.aggregate_fit(1, results, [])
+
+        client_average = (first_model[0] + 3.0 * second_model[0]) / 4.0
+        expected = (1.0 - 0.25) * initial_parameters[0] + 0.25 * client_average
+        np.testing.assert_allclose(parameters_to_ndarrays(aggregated_parameters)[0], expected)
+
     def test_fednova_client_fit_returns_updates_for_any_model_shape(self) -> None:
         config = ExperimentConfig.from_run_config({"algorithm": "fednova"})
         model = torch.nn.Linear(3, 2)
@@ -393,7 +1182,7 @@ class ModelAndAlgorithmTest(unittest.TestCase):
             loaders=type(
                 "Loaders",
                 (),
-                {"train": loader, "validation": loader},
+                {"train": loader, "test": loader},
             )(),
             config=config,
         )
@@ -429,7 +1218,7 @@ class ModelAndAlgorithmTest(unittest.TestCase):
                 loaders=type(
                     "Loaders",
                     (),
-                    {"train": loader, "validation": loader},
+                    {"train": loader, "test": loader},
                 )(),
                 config=config,
                 client_id="client-1",
@@ -468,7 +1257,7 @@ class ModelAndAlgorithmTest(unittest.TestCase):
                 loaders=type(
                     "Loaders",
                     (),
-                    {"train": loader, "validation": loader},
+                    {"train": loader, "test": loader},
                 )(),
                 config=config,
                 client_id="client-1",
@@ -491,6 +1280,537 @@ class ModelAndAlgorithmTest(unittest.TestCase):
             self.assertIn("fedrep_representation_train_loss", metrics)
             self.assertTrue(
                 (Path(output_dir) / "fedrep_clients" / "client-1" / "personal.pt").exists()
+            )
+
+    def test_feddyn_client_fit_persists_dynamic_state(self) -> None:
+        with tempfile.TemporaryDirectory() as output_dir:
+            config = ExperimentConfig.from_run_config(
+                {
+                    "algorithm": "feddyn",
+                    "output-dir": output_dir,
+                    "feddyn-alpha": 0.2,
+                }
+            )
+            model = torch.nn.Linear(3, 2)
+            loader = DataLoader(
+                TensorDataset(torch.ones(4, 3), torch.zeros(4, dtype=torch.long)),
+                batch_size=2,
+            )
+            client = TorchFlowerClient(
+                model,
+                loaders=type("Loaders", (), {"train": loader, "test": loader})(),
+                config=config,
+                client_id="7",
+            )
+            initial_parameters = get_model_parameters(model)
+
+            updated_parameters, num_examples, metrics = client.fit(
+                initial_parameters,
+                {
+                    "algorithm": "feddyn",
+                    "local_epochs": 1,
+                    "learning_rate": 0.1,
+                    "feddyn_alpha": 0.2,
+                },
+            )
+
+            self.assertEqual(num_examples, 4)
+            self.assertEqual(len(updated_parameters), len(initial_parameters))
+            self.assertIn("train_loss", metrics)
+            state_path = Path(output_dir) / "feddyn_clients" / "7" / "state.pt"
+            self.assertTrue(state_path.exists())
+
+    def test_feddyn_client_fit_reuses_saved_dynamic_state(self) -> None:
+        with tempfile.TemporaryDirectory() as output_dir:
+            config = ExperimentConfig.from_run_config(
+                {
+                    "algorithm": "feddyn",
+                    "output-dir": output_dir,
+                    "feddyn-alpha": 0.2,
+                }
+            )
+            model = torch.nn.Linear(3, 2)
+            loader = DataLoader(
+                TensorDataset(torch.ones(4, 3), torch.zeros(4, dtype=torch.long)),
+                batch_size=2,
+            )
+            client = TorchFlowerClient(
+                model,
+                loaders=type("Loaders", (), {"train": loader, "test": loader})(),
+                config=config,
+                client_id="3",
+            )
+            initial_parameters = get_model_parameters(model)
+
+            client.fit(
+                initial_parameters,
+                {
+                    "algorithm": "feddyn",
+                    "local_epochs": 1,
+                    "learning_rate": 0.1,
+                    "feddyn_alpha": 0.2,
+                },
+            )
+            state_path = Path(output_dir) / "feddyn_clients" / "3" / "state.pt"
+            first_state = torch.load(state_path, map_location="cpu", weights_only=True)
+
+            client.fit(
+                initial_parameters,
+                {
+                    "algorithm": "feddyn",
+                    "local_epochs": 1,
+                    "learning_rate": 0.1,
+                    "feddyn_alpha": 0.2,
+                },
+            )
+            second_state = torch.load(state_path, map_location="cpu", weights_only=True)
+
+            self.assertEqual(len(first_state), len(second_state))
+            self.assertTrue(
+                any(
+                    not torch.equal(first, second)
+                    for first, second in zip(first_state, second_state)
+                )
+            )
+
+    def test_feddc_client_fit_persists_state(self) -> None:
+        with tempfile.TemporaryDirectory() as output_dir:
+            config = ExperimentConfig.from_run_config(
+                {
+                    "algorithm": "feddc",
+                    "output-dir": output_dir,
+                    "feddc-alpha": 0.05,
+                }
+            )
+            model = torch.nn.Linear(3, 2)
+            loader = DataLoader(
+                TensorDataset(torch.ones(4, 3), torch.zeros(4, dtype=torch.long)),
+                batch_size=2,
+            )
+            client = TorchFlowerClient(
+                model,
+                loaders=type("Loaders", (), {"train": loader, "test": loader})(),
+                config=config,
+                client_id="feddc-1",
+            )
+            initial_parameters = get_model_parameters(model)
+            server_state = [np.zeros_like(parameter) for parameter in initial_parameters]
+
+            updated_parameters, num_examples, metrics = client.fit(
+                initial_parameters + server_state,
+                {
+                    "algorithm": "feddc",
+                    "local_epochs": 1,
+                    "learning_rate": 0.1,
+                    "feddc_alpha": 0.05,
+                },
+            )
+
+            self.assertEqual(num_examples, 4)
+            self.assertEqual(len(updated_parameters), 2 * len(initial_parameters))
+            self.assertIn("train_loss", metrics)
+            state_path = Path(output_dir) / "feddc_clients" / "feddc-1" / "state.pt"
+            self.assertTrue(state_path.exists())
+
+    def test_feddc_client_fit_reuses_saved_state(self) -> None:
+        with tempfile.TemporaryDirectory() as output_dir:
+            config = ExperimentConfig.from_run_config(
+                {
+                    "algorithm": "feddc",
+                    "output-dir": output_dir,
+                    "feddc-alpha": 0.05,
+                }
+            )
+            model = torch.nn.Linear(3, 2)
+            loader = DataLoader(
+                TensorDataset(torch.ones(4, 3), torch.zeros(4, dtype=torch.long)),
+                batch_size=2,
+            )
+            client = TorchFlowerClient(
+                model,
+                loaders=type("Loaders", (), {"train": loader, "test": loader})(),
+                config=config,
+                client_id="feddc-2",
+            )
+            initial_parameters = get_model_parameters(model)
+            server_state = [np.zeros_like(parameter) for parameter in initial_parameters]
+
+            client.fit(
+                initial_parameters + server_state,
+                {
+                    "algorithm": "feddc",
+                    "local_epochs": 1,
+                    "learning_rate": 0.1,
+                    "feddc_alpha": 0.05,
+                },
+            )
+            state_path = Path(output_dir) / "feddc_clients" / "feddc-2" / "state.pt"
+            first_state = torch.load(state_path, map_location="cpu", weights_only=True)
+
+            client.fit(
+                initial_parameters + server_state,
+                {
+                    "algorithm": "feddc",
+                    "local_epochs": 1,
+                    "learning_rate": 0.1,
+                    "feddc_alpha": 0.05,
+                },
+            )
+            second_state = torch.load(state_path, map_location="cpu", weights_only=True)
+
+            self.assertEqual(set(first_state.keys()), {"drift", "local_update"})
+            self.assertEqual(set(second_state.keys()), {"drift", "local_update"})
+            self.assertTrue(
+                any(
+                    not torch.equal(first_tensor, second_tensor)
+                    for first_tensor, second_tensor in zip(
+                        first_state["drift"],
+                        second_state["drift"],
+                    )
+                )
+            )
+
+    def test_fedntd_client_fit_returns_metrics(self) -> None:
+        config = ExperimentConfig.from_run_config(
+            {
+                "algorithm": "fedntd",
+                "fedntd-beta": 1.2,
+                "fedntd-temperature": 2.0,
+            }
+        )
+        model = torch.nn.Linear(3, 2)
+        loader = DataLoader(
+            TensorDataset(torch.ones(4, 3), torch.zeros(4, dtype=torch.long)),
+            batch_size=2,
+        )
+        client = TorchFlowerClient(
+            model,
+            loaders=type("Loaders", (), {"train": loader, "test": loader})(),
+            config=config,
+            client_id="fedntd-1",
+        )
+        initial_parameters = get_model_parameters(model)
+
+        updated_parameters, num_examples, metrics = client.fit(
+            initial_parameters,
+            {
+                "algorithm": "fedntd",
+                "local_epochs": 1,
+                "learning_rate": 0.1,
+                "fedntd_beta": 1.2,
+                "fedntd_temperature": 2.0,
+            },
+        )
+
+        self.assertEqual(num_examples, 4)
+        self.assertEqual(len(updated_parameters), len(initial_parameters))
+        self.assertIn("train_loss", metrics)
+        self.assertIn("train_accuracy", metrics)
+
+    def test_fedproto_client_fit_returns_prototype_payload(self) -> None:
+        config = ExperimentConfig.from_run_config(
+            {
+                "algorithm": "fedproto",
+                "fedproto-lambda": 0.2,
+                "num-classes": 3,
+            }
+        )
+        model = torch.nn.Linear(3, 3)
+        loader = DataLoader(
+            TensorDataset(
+                torch.tensor(
+                    [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.5, 0.5, 0.0], [0.0, 0.0, 1.0]],
+                    dtype=torch.float32,
+                ),
+                torch.tensor([0, 1, 0, 2], dtype=torch.long),
+            ),
+            batch_size=2,
+        )
+        client = TorchFlowerClient(
+            model,
+            loaders=type("Loaders", (), {"train": loader, "test": loader})(),
+            config=config,
+            client_id="fedproto-1",
+        )
+        initial_parameters = get_model_parameters(model)
+        global_prototypes = np.zeros((3, 3), dtype=np.float32)
+
+        updated_payload, num_examples, metrics = client.fit(
+            initial_parameters + [global_prototypes],
+            {
+                "algorithm": "fedproto",
+                "local_epochs": 1,
+                "learning_rate": 0.1,
+                "fedproto_lambda": 0.2,
+            },
+        )
+
+        self.assertEqual(num_examples, 4)
+        self.assertEqual(len(updated_payload), len(initial_parameters) + 2)
+        self.assertEqual(updated_payload[-2].shape[0], 3)
+        self.assertEqual(updated_payload[-1].shape, (3,))
+        self.assertIn("train_loss", metrics)
+        self.assertIn("train_accuracy", metrics)
+
+    def test_fedntd_training_keeps_teacher_fixed(self) -> None:
+        student_model = torch.nn.Linear(3, 2)
+        teacher_model = torch.nn.Linear(3, 2)
+        teacher_model.load_state_dict(student_model.state_dict())
+        teacher_before = {
+            key: value.detach().clone()
+            for key, value in teacher_model.state_dict().items()
+        }
+        student_before = {
+            key: value.detach().clone()
+            for key, value in student_model.state_dict().items()
+        }
+        loader = DataLoader(
+            TensorDataset(torch.ones(4, 3), torch.zeros(4, dtype=torch.long)),
+            batch_size=2,
+        )
+
+        metrics = train_fedntd_client(
+            student_model,
+            teacher_model,
+            loader,
+            epochs=1,
+            learning_rate=0.1,
+            device="cpu",
+            fedntd_beta=1.2,
+            fedntd_temperature=2.0,
+        )
+
+        self.assertIn("train_loss", metrics)
+        self.assertTrue(
+            any(
+                not torch.equal(student_before[key], student_model.state_dict()[key])
+                for key in student_before
+            )
+        )
+        self.assertTrue(
+            all(
+                torch.equal(teacher_before[key], teacher_model.state_dict()[key])
+                for key in teacher_before
+            )
+        )
+
+    def test_ditto_client_fit_persists_personalized_state(self) -> None:
+        with tempfile.TemporaryDirectory() as output_dir:
+            config = ExperimentConfig.from_run_config(
+                {
+                    "algorithm": "ditto",
+                    "output-dir": output_dir,
+                    "ditto-lambda": 0.3,
+                }
+            )
+            model = torch.nn.Linear(3, 2)
+            loader = DataLoader(
+                TensorDataset(torch.ones(4, 3), torch.zeros(4, dtype=torch.long)),
+                batch_size=2,
+            )
+            client = TorchFlowerClient(
+                model,
+                loaders=type("Loaders", (), {"train": loader, "test": loader})(),
+                config=config,
+                client_id="ditto-1",
+            )
+            initial_parameters = get_model_parameters(model)
+
+            updated_parameters, num_examples, metrics = client.fit(
+                initial_parameters,
+                {
+                    "algorithm": "ditto",
+                    "local_epochs": 1,
+                    "learning_rate": 0.1,
+                    "ditto_lambda": 0.3,
+                },
+            )
+
+            self.assertEqual(num_examples, 4)
+            self.assertEqual(len(updated_parameters), len(initial_parameters))
+            self.assertIn("train_loss", metrics)
+            self.assertTrue(
+                (
+                    Path(output_dir)
+                    / "ditto_clients"
+                    / "ditto-1"
+                    / "personalized.pt"
+                ).exists()
+            )
+
+    def test_ditto_client_fit_reuses_personalized_state(self) -> None:
+        with tempfile.TemporaryDirectory() as output_dir:
+            config = ExperimentConfig.from_run_config(
+                {
+                    "algorithm": "ditto",
+                    "output-dir": output_dir,
+                    "ditto-lambda": 0.3,
+                }
+            )
+            model = torch.nn.Linear(3, 2)
+            loader = DataLoader(
+                TensorDataset(torch.ones(4, 3), torch.zeros(4, dtype=torch.long)),
+                batch_size=2,
+            )
+            client = TorchFlowerClient(
+                model,
+                loaders=type("Loaders", (), {"train": loader, "test": loader})(),
+                config=config,
+                client_id="ditto-2",
+            )
+            initial_parameters = get_model_parameters(model)
+
+            client.fit(
+                initial_parameters,
+                {
+                    "algorithm": "ditto",
+                    "local_epochs": 1,
+                    "learning_rate": 0.1,
+                    "ditto_lambda": 0.3,
+                },
+            )
+            personal_path = (
+                Path(output_dir)
+                / "ditto_clients"
+                / "ditto-2"
+                / "personalized.pt"
+            )
+            first_state = torch.load(personal_path, map_location="cpu", weights_only=True)
+
+            client.fit(
+                initial_parameters,
+                {
+                    "algorithm": "ditto",
+                    "local_epochs": 1,
+                    "learning_rate": 0.1,
+                    "ditto_lambda": 0.3,
+                },
+            )
+            second_state = torch.load(personal_path, map_location="cpu", weights_only=True)
+
+            self.assertEqual(len(first_state), len(second_state))
+            self.assertTrue(
+                any(
+                    not torch.equal(first_state[key], second_state[key])
+                    for key in first_state
+                )
+            )
+
+    def test_pfedme_client_fit_persists_personalized_state(self) -> None:
+        with tempfile.TemporaryDirectory() as output_dir:
+            config = ExperimentConfig.from_run_config(
+                {
+                    "algorithm": "pfedme",
+                    "output-dir": output_dir,
+                    "pfedme-lambda": 15.0,
+                    "pfedme-beta": 0.7,
+                    "pfedme-personal-learning-rate": 0.02,
+                    "pfedme-personal-steps": 3,
+                }
+            )
+            model = torch.nn.Linear(3, 2)
+            loader = DataLoader(
+                TensorDataset(torch.ones(4, 3), torch.zeros(4, dtype=torch.long)),
+                batch_size=2,
+            )
+            client = TorchFlowerClient(
+                model,
+                loaders=type("Loaders", (), {"train": loader, "test": loader})(),
+                config=config,
+                client_id="pfedme-1",
+            )
+            initial_parameters = get_model_parameters(model)
+
+            updated_parameters, num_examples, metrics = client.fit(
+                initial_parameters,
+                {
+                    "algorithm": "pfedme",
+                    "local_epochs": 1,
+                    "learning_rate": 0.1,
+                    "pfedme_lambda": 15.0,
+                    "pfedme_beta": 0.7,
+                    "pfedme_personal_learning_rate": 0.02,
+                    "pfedme_personal_steps": 3,
+                },
+            )
+
+            self.assertEqual(num_examples, 4)
+            self.assertEqual(len(updated_parameters), len(initial_parameters))
+            self.assertIn("train_loss", metrics)
+            self.assertTrue(
+                (
+                    Path(output_dir)
+                    / "pfedme_clients"
+                    / "pfedme-1"
+                    / "personalized.pt"
+                ).exists()
+            )
+
+    def test_pfedme_client_fit_reuses_personalized_state(self) -> None:
+        with tempfile.TemporaryDirectory() as output_dir:
+            config = ExperimentConfig.from_run_config(
+                {
+                    "algorithm": "pfedme",
+                    "output-dir": output_dir,
+                    "pfedme-lambda": 15.0,
+                    "pfedme-beta": 0.7,
+                    "pfedme-personal-learning-rate": 0.02,
+                    "pfedme-personal-steps": 3,
+                }
+            )
+            model = torch.nn.Linear(3, 2)
+            loader = DataLoader(
+                TensorDataset(torch.ones(4, 3), torch.zeros(4, dtype=torch.long)),
+                batch_size=2,
+            )
+            client = TorchFlowerClient(
+                model,
+                loaders=type("Loaders", (), {"train": loader, "test": loader})(),
+                config=config,
+                client_id="pfedme-2",
+            )
+            initial_parameters = get_model_parameters(model)
+
+            client.fit(
+                initial_parameters,
+                {
+                    "algorithm": "pfedme",
+                    "local_epochs": 1,
+                    "learning_rate": 0.1,
+                    "pfedme_lambda": 15.0,
+                    "pfedme_beta": 0.7,
+                    "pfedme_personal_learning_rate": 0.02,
+                    "pfedme_personal_steps": 3,
+                },
+            )
+            personal_path = (
+                Path(output_dir)
+                / "pfedme_clients"
+                / "pfedme-2"
+                / "personalized.pt"
+            )
+            first_state = torch.load(personal_path, map_location="cpu", weights_only=True)
+
+            client.fit(
+                initial_parameters,
+                {
+                    "algorithm": "pfedme",
+                    "local_epochs": 1,
+                    "learning_rate": 0.1,
+                    "pfedme_lambda": 15.0,
+                    "pfedme_beta": 0.7,
+                    "pfedme_personal_learning_rate": 0.02,
+                    "pfedme_personal_steps": 3,
+                },
+            )
+            second_state = torch.load(personal_path, map_location="cpu", weights_only=True)
+
+            self.assertEqual(len(first_state), len(second_state))
+            self.assertTrue(
+                any(
+                    not torch.equal(first_state[key], second_state[key])
+                    for key in first_state
+                )
             )
 
     def test_scaffold_training_returns_control_delta(self) -> None:

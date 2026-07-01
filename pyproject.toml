@@ -50,8 +50,9 @@ num-server-rounds = 3
 num-supernodes = 10
 fraction-train = 1.0
 fraction-evaluate = 1.0
+client-test-fraction = 0.2
 
-# Client local training, shared by FedAvg/FedAvgM/FedNova/FedPer/FedRep/FedProx/SCAFFOLD/MOON
+# Client local training, shared by FedAvg/FedAvgM/FedAdp/FedExP/FedNova/FedPer/FedRep/FedProx/SCAFFOLD/MOON
 local-epochs = 1
 batch-size = 32
 learning-rate = 0.01
@@ -62,6 +63,34 @@ learning-rate = 0.01
 # FedAvgM
 server-learning-rate = 1.0
 server-momentum = 0.9
+
+# FedAdp
+fedadp-alpha = 5.0
+
+# FedDyn
+feddyn-alpha = 0.1
+
+# FedDC
+feddc-alpha = 0.01
+
+# FedExP
+fedexp-epsilon = 0.001
+
+# FedProto
+fedproto-lambda = 1.0
+
+# FedNTD
+fedntd-beta = 1.0
+fedntd-temperature = 1.0
+
+# Ditto
+ditto-lambda = 0.1
+
+# pFedMe
+pfedme-lambda = 15.0
+pfedme-beta = 1.0
+pfedme-personal-learning-rate = 0.01
+pfedme-personal-steps = 5
 
 # FedNova
 fednova-server-momentum = 0.0

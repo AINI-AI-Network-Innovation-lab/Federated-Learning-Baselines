@@ -48,6 +48,7 @@ num-server-rounds = 3
 num-supernodes = 10
 fraction-train = 1.0
 fraction-evaluate = 1.0
+client-test-fraction = 0.2
 
 # Client local training
 local-epochs = 1
@@ -57,6 +58,34 @@ learning-rate = 0.01
 # FedAvgM
 server-learning-rate = 1.0
 server-momentum = 0.9
+
+# FedAdp
+fedadp-alpha = 5.0
+
+# FedDyn
+feddyn-alpha = 0.1
+
+# FedDC
+feddc-alpha = 0.01
+
+# FedExP
+fedexp-epsilon = 0.001
+
+# FedProto
+fedproto-lambda = 1.0
+
+# FedNTD
+fedntd-beta = 1.0
+fedntd-temperature = 1.0
+
+# Ditto
+ditto-lambda = 0.1
+
+# pFedMe
+pfedme-lambda = 15.0
+pfedme-beta = 1.0
+pfedme-personal-learning-rate = 0.01
+pfedme-personal-steps = 5
 
 # FedNova
 fednova-server-momentum = 0.0
@@ -90,6 +119,13 @@ options.num-supernodes = 10
 
 `num-supernodes` trong app config được framework dùng để chia partition và cấu hình strategy. `options.num-supernodes` trong Flower federation config điều khiển số supernode mà local simulation tạo ra.
 
+## Evaluation Semantics
+
+- server eval dùng server-side test set
+- client eval dùng held-out test split được tách từ local partition của từng client theo `client-test-fraction`
+- cả hai luồng đều report `loss`, `accuracy`, `precision`, `recall`, và `f1`
+- `precision`, `recall`, và `f1` dùng macro averaging cho multi-class classification
+
 ## Chạy FedProx
 
 ```bash
@@ -106,6 +142,54 @@ flwr run . --run-config 'algorithm="fedavgm" server-learning-rate=1.0 server-mom
 
 ```bash
 flwr run . --run-config 'algorithm="fednova" fednova-server-momentum=0.0' --stream
+```
+
+## Chạy FedAdp
+
+```bash
+flwr run . --run-config 'algorithm="fedadp" fedadp-alpha=5.0' --stream
+```
+
+## Chạy Ditto
+
+```bash
+flwr run . --run-config 'algorithm="ditto" ditto-lambda=0.1' --stream
+```
+
+## Chạy FedDyn
+
+```bash
+flwr run . --run-config 'algorithm="feddyn" feddyn-alpha=0.1' --stream
+```
+
+## Chạy FedDC
+
+```bash
+flwr run . --run-config 'algorithm="feddc" feddc-alpha=0.01' --stream
+```
+
+## Chạy FedExP
+
+```bash
+flwr run . --run-config 'algorithm="fedexp" fedexp-epsilon=0.001' --stream
+```
+
+## Chạy FedProto
+
+```bash
+flwr run . --run-config 'algorithm="fedproto" fedproto-lambda=1.0' --stream
+```
+
+## Chạy FedNTD
+
+```bash
+flwr run . --run-config 'algorithm="fedntd" fedntd-beta=1.0 fedntd-temperature=1.0' --stream
+```
+
+## Chạy pFedMe
+
+```bash
+flwr run . --run-config 'algorithm="pfedme" pfedme-lambda=15.0 pfedme-beta=1.0 pfedme-personal-learning-rate=0.01 pfedme-personal-steps=5' --stream
 ```
 
 ## Chạy FedPer

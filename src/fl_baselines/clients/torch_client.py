@@ -18,8 +18,14 @@ from fl_baselines.algorithms.fedper import (
 )
 from fl_baselines.core.config import ExperimentConfig
 from fl_baselines.core.types import ClientDataLoaders
+from fl_baselines.training.ditto import train_ditto_personalized
 from fl_baselines.training.evaluate import evaluate_model
+from fl_baselines.training.feddc import train_feddc_client
+from fl_baselines.training.feddyn import train_feddyn_client, update_feddyn_state
+from fl_baselines.training.fedntd import train_fedntd_client
+from fl_baselines.training.fedproto import train_fedproto_client
 from fl_baselines.training.moon import train_moon_client
+from fl_baselines.training.pfedme import train_pfedme_client
 from fl_baselines.training.scaffold import train_scaffold_client
 from fl_baselines.training.train import train_one_client
 
@@ -73,6 +79,18 @@ class TorchFlowerClient(NumPyClient):
             return self._fit_scaffold(parameters, config)
         if algorithm == "moon":
             return self._fit_moon(parameters, config)
+        if algorithm == "feddyn":
+            return self._fit_feddyn(parameters, config)
+        if algorithm == "feddc":
+            return self._fit_feddc(parameters, config)
+        if algorithm == "fedproto":
+            return self._fit_fedproto(parameters, config)
+        if algorithm == "fedntd":
+            return self._fit_fedntd(parameters, config)
+        if algorithm == "ditto":
+            return self._fit_ditto(parameters, config)
+        if algorithm == "pfedme":
+            return self._fit_pfedme(parameters, config)
 
         set_model_parameters(self.model, parameters)
         local_epochs = int(config.get("local_epochs", self.config.local_epochs))
@@ -201,6 +219,330 @@ class TorchFlowerClient(NumPyClient):
         metrics["local_norm"] = local_norm
         metrics["tau"] = local_norm
         return updates, len(self.loaders.train.dataset), metrics
+
+    def _fit_feddyn(
+        self,
+        parameters: list[np.ndarray],
+        config: dict[str, bool | bytes | float | int | str],
+    ) -> tuple[list[np.ndarray], int, dict[str, bool | bytes | float | int | str]]:
+        set_model_parameters(self.model, parameters)
+        global_model = copy.deepcopy(self.model)
+        state = self._load_feddyn_state()
+
+        local_epochs = int(config.get("local_epochs", self.config.local_epochs))
+        learning_rate = float(config.get("learning_rate", self.config.learning_rate))
+        alpha = float(config.get("feddyn_alpha", self.config.feddyn_alpha))
+        metrics = train_feddyn_client(
+            self.model,
+            global_model,
+            self.loaders.train,
+            epochs=local_epochs,
+            learning_rate=learning_rate,
+            device=self.config.device,
+            alpha=alpha,
+            state=state,
+        )
+        new_state = update_feddyn_state(state, self.model, global_model, alpha)
+        self._save_feddyn_state(new_state)
+        return get_model_parameters(self.model), len(self.loaders.train.dataset), metrics
+
+    def _fit_feddc(
+        self,
+        parameters: list[np.ndarray],
+        config: dict[str, bool | bytes | float | int | str],
+    ) -> tuple[list[np.ndarray], int, dict[str, bool | bytes | float | int | str]]:
+        model_parameter_count = len(get_model_parameters(self.model))
+        if len(parameters) <= model_parameter_count:
+            raise ValueError("FedDC fit requires model parameters and server update state")
+
+        model_parameters = parameters[:model_parameter_count]
+        server_update_state = parameters[model_parameter_count:]
+        set_model_parameters(self.model, model_parameters)
+        global_model = copy.deepcopy(self.model)
+        drift_state, local_update_state = self._load_feddc_state()
+
+        local_epochs = int(config.get("local_epochs", self.config.local_epochs))
+        learning_rate = float(config.get("learning_rate", self.config.learning_rate))
+        alpha = float(config.get("feddc_alpha", self.config.feddc_alpha))
+        metrics, updated_drift_state, updated_local_state = train_feddc_client(
+            self.model,
+            global_model,
+            self.loaders.train,
+            epochs=local_epochs,
+            learning_rate=learning_rate,
+            device=self.config.device,
+            alpha=alpha,
+            drift_state=drift_state,
+            local_update_state=local_update_state,
+            server_update_state=[
+                torch.as_tensor(state.copy())
+                for state in server_update_state
+            ],
+        )
+        self._save_feddc_state(updated_drift_state, updated_local_state)
+        corrected_parameters = [
+            local_parameter + drift_tensor.detach().cpu().numpy()
+            for local_parameter, drift_tensor in zip(
+                get_model_parameters(self.model),
+                updated_drift_state,
+            )
+        ]
+        local_update_arrays = [
+            tensor.detach().cpu().numpy() for tensor in updated_local_state
+        ]
+        return (
+            corrected_parameters + local_update_arrays,
+            len(self.loaders.train.dataset),
+            metrics,
+        )
+
+    def _fit_ditto(
+        self,
+        parameters: list[np.ndarray],
+        config: dict[str, bool | bytes | float | int | str],
+    ) -> tuple[list[np.ndarray], int, dict[str, bool | bytes | float | int | str]]:
+        set_model_parameters(self.model, parameters)
+        global_model = copy.deepcopy(self.model)
+
+        local_epochs = int(config.get("local_epochs", self.config.local_epochs))
+        learning_rate = float(config.get("learning_rate", self.config.learning_rate))
+        ditto_lambda = float(config.get("ditto_lambda", self.config.ditto_lambda))
+
+        metrics = train_one_client(
+            self.model,
+            self.loaders.train,
+            epochs=local_epochs,
+            learning_rate=learning_rate,
+            device=self.config.device,
+        )
+
+        personalized_model = self._load_ditto_personalized_model(global_model)
+        train_ditto_personalized(
+            personalized_model,
+            global_model,
+            self.loaders.train,
+            epochs=local_epochs,
+            learning_rate=learning_rate,
+            device=self.config.device,
+            ditto_lambda=ditto_lambda,
+        )
+        self._save_ditto_personalized_model(personalized_model)
+
+        return get_model_parameters(self.model), len(self.loaders.train.dataset), metrics
+
+    def _fit_fedntd(
+        self,
+        parameters: list[np.ndarray],
+        config: dict[str, bool | bytes | float | int | str],
+    ) -> tuple[list[np.ndarray], int, dict[str, bool | bytes | float | int | str]]:
+        set_model_parameters(self.model, parameters)
+        teacher_model = copy.deepcopy(self.model)
+
+        local_epochs = int(config.get("local_epochs", self.config.local_epochs))
+        learning_rate = float(config.get("learning_rate", self.config.learning_rate))
+        fedntd_beta = float(config.get("fedntd_beta", self.config.fedntd_beta))
+        fedntd_temperature = float(
+            config.get("fedntd_temperature", self.config.fedntd_temperature)
+        )
+        metrics = train_fedntd_client(
+            self.model,
+            teacher_model,
+            self.loaders.train,
+            epochs=local_epochs,
+            learning_rate=learning_rate,
+            device=self.config.device,
+            fedntd_beta=fedntd_beta,
+            fedntd_temperature=fedntd_temperature,
+        )
+        return get_model_parameters(self.model), len(self.loaders.train.dataset), metrics
+
+    def _fit_fedproto(
+        self,
+        parameters: list[np.ndarray],
+        config: dict[str, bool | bytes | float | int | str],
+    ) -> tuple[list[np.ndarray], int, dict[str, bool | bytes | float | int | str]]:
+        model_parameter_count = len(get_model_parameters(self.model))
+        if len(parameters) <= model_parameter_count:
+            raise ValueError("FedProto fit requires model parameters and global prototypes")
+
+        model_parameters = parameters[:model_parameter_count]
+        global_prototypes = parameters[model_parameter_count]
+        set_model_parameters(self.model, model_parameters)
+
+        local_epochs = int(config.get("local_epochs", self.config.local_epochs))
+        learning_rate = float(config.get("learning_rate", self.config.learning_rate))
+        fedproto_lambda = float(
+            config.get("fedproto_lambda", self.config.fedproto_lambda)
+        )
+        metrics, prototype_sums, prototype_counts = train_fedproto_client(
+            self.model,
+            self.loaders.train,
+            epochs=local_epochs,
+            learning_rate=learning_rate,
+            device=self.config.device,
+            fedproto_lambda=fedproto_lambda,
+            global_prototypes=global_prototypes,
+        )
+        return (
+            get_model_parameters(self.model) + [prototype_sums, prototype_counts],
+            len(self.loaders.train.dataset),
+            metrics,
+        )
+
+    def _fit_pfedme(
+        self,
+        parameters: list[np.ndarray],
+        config: dict[str, bool | bytes | float | int | str],
+    ) -> tuple[list[np.ndarray], int, dict[str, bool | bytes | float | int | str]]:
+        set_model_parameters(self.model, parameters)
+        reference_model = copy.deepcopy(self.model)
+        personalized_model = self._load_pfedme_personalized_model(reference_model)
+
+        local_epochs = int(config.get("local_epochs", self.config.local_epochs))
+        learning_rate = float(config.get("learning_rate", self.config.learning_rate))
+        pfedme_lambda = float(config.get("pfedme_lambda", self.config.pfedme_lambda))
+        personal_learning_rate = float(
+            config.get(
+                "pfedme_personal_learning_rate",
+                self.config.pfedme_personal_learning_rate,
+            )
+        )
+        personal_steps = int(
+            config.get("pfedme_personal_steps", self.config.pfedme_personal_steps)
+        )
+        metrics = train_pfedme_client(
+            reference_model,
+            personalized_model,
+            self.loaders.train,
+            epochs=local_epochs,
+            learning_rate=learning_rate,
+            personal_learning_rate=personal_learning_rate,
+            personal_steps=personal_steps,
+            device=self.config.device,
+            pfedme_lambda=pfedme_lambda,
+        )
+        self._save_pfedme_personalized_model(personalized_model)
+        self.model.load_state_dict(reference_model.state_dict(), strict=True)
+        return get_model_parameters(self.model), len(self.loaders.train.dataset), metrics
+
+    def _feddyn_state_path(self) -> Path:
+        return (
+            Path(self.config.output_dir)
+            / "feddyn_clients"
+            / self.client_id
+            / "state.pt"
+        )
+
+    def _load_feddyn_state(self) -> list[torch.Tensor]:
+        state_path = self._feddyn_state_path()
+        if state_path.exists():
+            return torch.load(
+                state_path,
+                map_location="cpu",
+                weights_only=True,
+            )
+        return [
+            torch.zeros_like(value.detach().cpu())
+            for value in self.model.state_dict().values()
+        ]
+
+    def _save_feddyn_state(self, state: list[torch.Tensor]) -> None:
+        state_path = self._feddyn_state_path()
+        state_path.parent.mkdir(parents=True, exist_ok=True)
+        torch.save(
+            [tensor.detach().cpu().clone() for tensor in state],
+            state_path,
+        )
+
+    def _feddc_state_path(self) -> Path:
+        return (
+            Path(self.config.output_dir)
+            / "feddc_clients"
+            / self.client_id
+            / "state.pt"
+        )
+
+    def _load_feddc_state(self) -> tuple[list[torch.Tensor], list[torch.Tensor]]:
+        state_path = self._feddc_state_path()
+        if state_path.exists():
+            state = torch.load(
+                state_path,
+                map_location="cpu",
+                weights_only=True,
+            )
+            return state["drift"], state["local_update"]
+        zeros = [
+            torch.zeros_like(value.detach().cpu())
+            for value in self.model.state_dict().values()
+        ]
+        return zeros, [tensor.clone() for tensor in zeros]
+
+    def _save_feddc_state(
+        self,
+        drift_state: list[torch.Tensor],
+        local_update_state: list[torch.Tensor],
+    ) -> None:
+        state_path = self._feddc_state_path()
+        state_path.parent.mkdir(parents=True, exist_ok=True)
+        torch.save(
+            {
+                "drift": [tensor.detach().cpu().clone() for tensor in drift_state],
+                "local_update": [
+                    tensor.detach().cpu().clone() for tensor in local_update_state
+                ],
+            },
+            state_path,
+        )
+
+    def _ditto_personalized_model_path(self) -> Path:
+        return (
+            Path(self.config.output_dir)
+            / "ditto_clients"
+            / self.client_id
+            / "personalized.pt"
+        )
+
+    def _load_ditto_personalized_model(self, global_model: nn.Module) -> nn.Module:
+        personalized_model = copy.deepcopy(global_model)
+        personal_path = self._ditto_personalized_model_path()
+        if personal_path.exists():
+            personal_state = torch.load(
+                personal_path,
+                map_location="cpu",
+                weights_only=True,
+            )
+            personalized_model.load_state_dict(personal_state, strict=True)
+        return personalized_model
+
+    def _save_ditto_personalized_model(self, model: nn.Module) -> None:
+        personal_path = self._ditto_personalized_model_path()
+        personal_path.parent.mkdir(parents=True, exist_ok=True)
+        torch.save(model.state_dict(), personal_path)
+
+    def _pfedme_personalized_model_path(self) -> Path:
+        return (
+            Path(self.config.output_dir)
+            / "pfedme_clients"
+            / self.client_id
+            / "personalized.pt"
+        )
+
+    def _load_pfedme_personalized_model(self, global_model: nn.Module) -> nn.Module:
+        personalized_model = copy.deepcopy(global_model)
+        personal_path = self._pfedme_personalized_model_path()
+        if personal_path.exists():
+            personal_state = torch.load(
+                personal_path,
+                map_location="cpu",
+                weights_only=True,
+            )
+            personalized_model.load_state_dict(personal_state, strict=True)
+        return personalized_model
+
+    def _save_pfedme_personalized_model(self, model: nn.Module) -> None:
+        personal_path = self._pfedme_personalized_model_path()
+        personal_path.parent.mkdir(parents=True, exist_ok=True)
+        torch.save(model.state_dict(), personal_path)
 
     def _fit_fedper(
         self,
@@ -404,7 +746,7 @@ class TorchFlowerClient(NumPyClient):
             set_model_parameters(self.model, parameters)
         loss, metrics = evaluate_model(
             self.model,
-            self.loaders.validation,
+            self.loaders.test,
             device=self.config.device,
         )
-        return loss, len(self.loaders.validation.dataset), metrics
+        return loss, len(self.loaders.test.dataset), metrics

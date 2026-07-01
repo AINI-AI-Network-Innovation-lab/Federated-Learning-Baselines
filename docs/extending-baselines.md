@@ -21,7 +21,7 @@ class Cifar10DatasetBuilder:
         num_partitions: int,
     ) -> ClientDataLoaders:
         # Load train/test data, partition theo partition_id,
-        # rồi trả về ClientDataLoaders(train=..., validation=...)
+        # rồi trả về ClientDataLoaders(train=..., test=...)
         ...
 
     def build_server_loader(self, config: ExperimentConfig) -> DataLoader:
@@ -49,7 +49,7 @@ Dataset builder nên đảm bảo:
 - partition deterministic theo `config.seed`
 - không làm mất sample khi chia client
 - `train` loader dùng shuffle nếu cần
-- `validation/server` loader không shuffle để metric ổn định
+- `test/server` loader không shuffle để metric ổn định
 
 ## Cách Mở Rộng Model
 
@@ -158,7 +158,15 @@ Các algorithm hiện có:
 
 - `fedavg`
 - `fedavgm`
+- `fedadp`
+- `ditto`
+- `feddc`
+- `feddyn`
+- `fedexp`
+- `fedntd`
+- `fedproto`
 - `fednova`
+- `pfedme`
 - `fedper`
 - `fedrep`
 - `fedprox`
@@ -171,7 +179,11 @@ Algorithm builder nên đảm bảo:
 - không hard-code dataset/model cụ thể
 - dùng metric aggregation chung nếu phù hợp
 - nếu có hyperparameter mới, thêm field vào `ExperimentConfig` và default trong `pyproject.toml`
-- nếu thuật toán cần state phía client, ví dụ SCAFFOLD cần client control variates, MOON cần local model round trước, hoặc FedPer/FedRep cần personal head theo client, hãy cô lập logic đó trong `clients/` và `training/` thay vì hard-code dataset/model
+- nếu thuật toán cần state phía client, ví dụ SCAFFOLD cần client control variates, MOON cần local model round trước, pFedMe/Ditto cần persisted personalized model, hoặc FedPer/FedRep cần personal head theo client, hãy cô lập logic đó trong `clients/` và `training/` thay vì hard-code dataset/model
+- nếu thuật toán cần state ở cả client và payload tensor phía server, như FedDC hoặc SCAFFOLD, hãy truyền state đó bằng parameter payload thay vì nhét vào scalar metrics
+- nếu thuật toán chỉ đổi server aggregation mà vẫn giữ local training path mặc định, như FedExP, ưu tiên implement gọn trong `algorithms/` thay vì mở nhánh riêng ở `TorchFlowerClient`
+- nếu thuật toán regularize tren embedding space nhu FedProto, uu tien them helper trich feature rieng thay vi thay doi `forward()` contract cua toan bo model
+- nếu thuật toán chỉ đổi local objective nhưng không cần client state xuyên round, như FedNTD, vẫn nên tách helper riêng trong `training/` và route bằng nhánh `algorithm` trong `TorchFlowerClient`
 
 ## Cách Thêm Một Baseline Hoàn Chỉnh
 

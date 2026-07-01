@@ -24,31 +24,28 @@ class TorchVisionDatasetBuilder(ABC):
         num_partitions: int,
     ) -> ClientDataLoaders:
         train_dataset = self._load(train=True, config=config)
-        validation_dataset = self._load(train=False, config=config)
 
-        train_indices = self._partition_indices(
+        partition_indices = self._partition_indices(
             self._targets(train_dataset),
             config,
             partition_id,
             num_partitions,
             seed_offset=0,
         )
-        validation_indices = self._partition_indices(
-            self._targets(validation_dataset),
+        client_train_indices, client_test_indices = self._split_client_train_test(
+            partition_indices,
             config,
             partition_id,
-            num_partitions,
-            seed_offset=1,
         )
 
         return ClientDataLoaders(
             train=DataLoader(
-                Subset(train_dataset, train_indices.tolist()),
+                Subset(train_dataset, client_train_indices.tolist()),
                 batch_size=config.batch_size,
                 shuffle=True,
             ),
-            validation=DataLoader(
-                Subset(validation_dataset, validation_indices.tolist()),
+            test=DataLoader(
+                Subset(train_dataset, client_test_indices.tolist()),
                 batch_size=config.batch_size,
                 shuffle=False,
             ),
@@ -60,7 +57,7 @@ class TorchVisionDatasetBuilder(ABC):
 
     @abstractmethod
     def _load(self, train: bool, config: ExperimentConfig):
-        """Load train or validation/test split."""
+        """Load train or test split."""
 
     def _partition_indices(
         self,
@@ -88,6 +85,25 @@ class TorchVisionDatasetBuilder(ABC):
         if hasattr(dataset, "labels"):
             return dataset.labels
         raise ValueError(f"{type(dataset).__name__} does not expose targets or labels")
+
+    def _split_client_train_test(
+        self,
+        indices: np.ndarray,
+        config: ExperimentConfig,
+        partition_id: int,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        if len(indices) < 2:
+            return indices, indices[:0]
+
+        rng = np.random.default_rng(config.seed + 10_000 + partition_id)
+        shuffled = indices.copy()
+        rng.shuffle(shuffled)
+
+        test_size = int(round(len(shuffled) * config.client_test_fraction))
+        test_size = max(1, min(len(shuffled) - 1, test_size))
+        test_indices = shuffled[:test_size]
+        train_indices = shuffled[test_size:]
+        return train_indices, test_indices
 
 
 def build_image_transform(config: ExperimentConfig, source_channels: int):
