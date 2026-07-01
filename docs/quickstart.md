@@ -71,6 +71,9 @@ feddc-alpha = 0.01
 # FedExP
 fedexp-epsilon = 0.001
 
+# FedSAM
+fedsam-rho = 0.5
+
 # FedProto
 fedproto-lambda = 1.0
 
@@ -172,6 +175,12 @@ flwr run . --run-config 'algorithm="feddc" feddc-alpha=0.01' --stream
 
 ```bash
 flwr run . --run-config 'algorithm="fedexp" fedexp-epsilon=0.001' --stream
+```
+
+## Chạy FedSAM
+
+```bash
+flwr run . --run-config 'algorithm="fedsam" fedsam-rho=0.5' --stream
 ```
 
 ## Chạy FedProto

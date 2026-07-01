@@ -50,6 +50,7 @@ class ExperimentConfig:
     feddyn_alpha: float = 0.1
     feddc_alpha: float = 0.01
     fedexp_epsilon: float = 0.001
+    fedsam_rho: float = 0.5
     fedproto_lambda: float = 1.0
     fedntd_beta: float = 1.0
     fedntd_temperature: float = 1.0
@@ -130,6 +131,11 @@ class ExperimentConfig:
                 run_config,
                 "fedexp-epsilon",
                 cls.fedexp_epsilon,
+            ),
+            fedsam_rho=_as_float(
+                run_config,
+                "fedsam-rho",
+                cls.fedsam_rho,
             ),
             fedproto_lambda=_as_float(
                 run_config,
@@ -241,6 +247,8 @@ class ExperimentConfig:
             raise ValueError("feddc-alpha must be positive")
         if self.fedexp_epsilon < 0:
             raise ValueError("fedexp-epsilon must be non-negative")
+        if self.fedsam_rho < 0:
+            raise ValueError("fedsam-rho must be non-negative")
         if self.fedproto_lambda < 0:
             raise ValueError("fedproto-lambda must be non-negative")
         if self.fedntd_beta < 0:

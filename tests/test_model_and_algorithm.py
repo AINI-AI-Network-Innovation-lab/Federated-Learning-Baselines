@@ -2,6 +2,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
@@ -13,6 +14,7 @@ from torch.utils.data import DataLoader, TensorDataset
 from flwr.common import Code, FitRes, Status, ndarrays_to_parameters, parameters_to_ndarrays
 from flwr.server.strategy import FedAvg, FedAvgM, FedProx
 
+import fl_baselines.clients.torch_client as torch_client_module
 from fl_baselines.clients.torch_client import TorchFlowerClient, get_model_parameters
 from fl_baselines.algorithms.fedavg import FedAvgBuilder
 from fl_baselines.algorithms.fedavgm import FedAvgMBuilder
@@ -21,6 +23,7 @@ from fl_baselines.algorithms.ditto import DittoBuilder
 from fl_baselines.algorithms.feddc import FedDCBuilder, FedDCStrategy
 from fl_baselines.algorithms.feddyn import FedDynBuilder, FedDynStrategy
 from fl_baselines.algorithms.fedexp import FedExPBuilder, FedExPStrategy
+from fl_baselines.algorithms.fedsam import FedSAMBuilder
 from fl_baselines.algorithms.fedntd import FedNTDBuilder
 from fl_baselines.algorithms.fedproto import FedProtoBuilder, FedProtoStrategy
 from fl_baselines.algorithms.pfedme import PFedMeBuilder, PFedMeStrategy
@@ -39,6 +42,7 @@ from fl_baselines.models.resnet import ResNet9Builder, ResNet18Builder, ResNet34
 from fl_baselines.models.inception import InceptionBuilder
 from fl_baselines.training.evaluate import evaluate_model
 from fl_baselines.training.features import extract_features
+from fl_baselines.training.fedsam import train_fedsam_client
 from fl_baselines.training.fedntd import train_fedntd_client
 from fl_baselines.training.moon import train_moon_client
 from fl_baselines.training.scaffold import train_scaffold_client
@@ -331,6 +335,51 @@ class ModelAndAlgorithmTest(unittest.TestCase):
                 model = model_builder.build_model(config)
                 strategy = FedExPBuilder().build_strategy(config, model, evaluate_fn=None)
                 self.assertIsInstance(strategy, FedExPStrategy)
+
+    def test_fedsam_builder_creates_strategy(self) -> None:
+        config = ExperimentConfig.from_run_config(
+            {"num-supernodes": 4, "fedsam-rho": 0.75}
+        )
+        model = MnistCnnBuilder().build_model(config)
+
+        strategy = FedSAMBuilder().build_strategy(config, model, evaluate_fn=None)
+        fit_config = strategy.on_fit_config_fn(1)
+
+        self.assertIsInstance(strategy, FedAvg)
+        self.assertEqual(strategy.min_fit_clients, 4)
+        self.assertEqual(fit_config["algorithm"], "fedsam")
+        self.assertEqual(fit_config["fedsam_rho"], 0.75)
+
+    def test_fedsam_builder_supports_current_models(self) -> None:
+        cases = [
+            (MnistCnnBuilder(), {}),
+            (LeNetBuilder(), {}),
+            (
+                ResNet9Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                ResNet18Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                ResNet34Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                InceptionBuilder(),
+                {"input-channels": 3, "input-height": 75, "input-width": 75},
+            ),
+        ]
+
+        for model_builder, overrides in cases:
+            with self.subTest(model=model_builder.name):
+                config = ExperimentConfig.from_run_config(
+                    {"algorithm": "fedsam", "num-supernodes": 2, **overrides}
+                )
+                model = model_builder.build_model(config)
+                strategy = FedSAMBuilder().build_strategy(config, model, evaluate_fn=None)
+                self.assertIsInstance(strategy, FedAvg)
 
     def test_feddyn_builder_creates_strategy(self) -> None:
         config = ExperimentConfig.from_run_config(
@@ -1551,6 +1600,113 @@ class ModelAndAlgorithmTest(unittest.TestCase):
         self.assertEqual(updated_payload[-1].shape, (3,))
         self.assertIn("train_loss", metrics)
         self.assertIn("train_accuracy", metrics)
+
+    def test_fedsam_training_updates_model_parameters(self) -> None:
+        model = torch.nn.Linear(2, 2)
+        loader = DataLoader(
+            TensorDataset(
+                torch.tensor(
+                    [[1.0, 0.0], [0.0, 1.0], [1.0, 1.0], [0.5, 0.5]],
+                    dtype=torch.float32,
+                ),
+                torch.tensor([0, 1, 0, 1], dtype=torch.long),
+            ),
+            batch_size=2,
+        )
+        initial_state = {
+            key: value.detach().clone() for key, value in model.state_dict().items()
+        }
+
+        metrics = train_fedsam_client(
+            model,
+            loader,
+            epochs=1,
+            learning_rate=0.05,
+            device="cpu",
+            fedsam_rho=0.5,
+        )
+
+        self.assertIn("train_loss", metrics)
+        self.assertIn("train_accuracy", metrics)
+        self.assertTrue(
+            any(
+                not torch.equal(initial_state[key], model.state_dict()[key])
+                for key in initial_state
+            )
+        )
+
+    def test_fedsam_training_with_zero_rho_still_trains(self) -> None:
+        model = torch.nn.Linear(2, 2)
+        loader = DataLoader(
+            TensorDataset(
+                torch.tensor(
+                    [[1.0, 0.0], [0.0, 1.0], [1.0, 1.0], [0.5, 0.5]],
+                    dtype=torch.float32,
+                ),
+                torch.tensor([0, 1, 0, 1], dtype=torch.long),
+            ),
+            batch_size=2,
+        )
+
+        metrics = train_fedsam_client(
+            model,
+            loader,
+            epochs=1,
+            learning_rate=0.05,
+            device="cpu",
+            fedsam_rho=0.0,
+        )
+
+        self.assertIn("train_loss", metrics)
+        self.assertIn("train_accuracy", metrics)
+
+    def test_torch_flower_client_routes_fedsam_to_dedicated_trainer(self) -> None:
+        config = ExperimentConfig.from_run_config(
+            {
+                "algorithm": "fedsam",
+                "local-epochs": 1,
+                "learning-rate": 0.05,
+                "fedsam-rho": 0.5,
+            }
+        )
+        model = torch.nn.Linear(2, 2)
+        loader = DataLoader(
+            TensorDataset(
+                torch.tensor(
+                    [[1.0, 0.0], [0.0, 1.0], [1.0, 1.0], [0.5, 0.5]],
+                    dtype=torch.float32,
+                ),
+                torch.tensor([0, 1, 0, 1], dtype=torch.long),
+            ),
+            batch_size=2,
+        )
+        client = TorchFlowerClient(
+            model,
+            loaders=type("Loaders", (), {"train": loader, "test": loader})(),
+            config=config,
+            client_id="fedsam-route",
+        )
+        initial_parameters = get_model_parameters(model)
+
+        with patch.object(
+            torch_client_module,
+            "train_fedsam_client",
+            return_value={"train_loss": 1.0, "train_accuracy": 0.5},
+        ) as mocked_trainer:
+            updated_parameters, num_examples, metrics = client.fit(
+                initial_parameters,
+                {
+                    "algorithm": "fedsam",
+                    "local_epochs": 1,
+                    "learning_rate": 0.05,
+                    "fedsam_rho": 0.5,
+                },
+            )
+
+        mocked_trainer.assert_called_once()
+        self.assertEqual(num_examples, len(loader.dataset))
+        self.assertEqual(len(updated_parameters), len(initial_parameters))
+        self.assertEqual(metrics["train_loss"], 1.0)
 
     def test_fedntd_training_keeps_teacher_fixed(self) -> None:
         student_model = torch.nn.Linear(3, 2)

@@ -11,6 +11,7 @@ Mỗi algorithm có một file riêng để dễ mở rộng khi thêm baseline 
 | FedDC | [feddc.md](feddc.md) |
 | FedDyn | [feddyn.md](feddyn.md) |
 | FedExP | [fedexp.md](fedexp.md) |
+| FedSAM | [fedsam.md](fedsam.md) |
 | FedNTD | [fedntd.md](fedntd.md) |
 | FedProto | [fedproto.md](fedproto.md) |
 | FedNova | [fednova.md](fednova.md) |

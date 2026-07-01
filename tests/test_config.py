@@ -42,6 +42,7 @@ class ExperimentConfigTest(unittest.TestCase):
                 "feddyn-alpha": 0.2,
                 "feddc-alpha": 0.05,
                 "fedexp-epsilon": 0.01,
+                "fedsam-rho": 0.5,
                 "fedproto-lambda": 0.2,
                 "fedntd-beta": 1.2,
                 "fedntd-temperature": 2.0,
@@ -80,6 +81,7 @@ class ExperimentConfigTest(unittest.TestCase):
         self.assertEqual(config.feddyn_alpha, 0.2)
         self.assertEqual(config.feddc_alpha, 0.05)
         self.assertEqual(config.fedexp_epsilon, 0.01)
+        self.assertEqual(config.fedsam_rho, 0.5)
         self.assertEqual(config.fedproto_lambda, 0.2)
         self.assertEqual(config.fedntd_beta, 1.2)
         self.assertEqual(config.fedntd_temperature, 2.0)
@@ -134,6 +136,9 @@ class ExperimentConfigTest(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "fedexp-epsilon must be non-negative"):
             ExperimentConfig.from_run_config({"fedexp-epsilon": -0.1})
+
+        with self.assertRaisesRegex(ValueError, "fedsam-rho must be non-negative"):
+            ExperimentConfig.from_run_config({"fedsam-rho": -0.1})
 
         with self.assertRaisesRegex(ValueError, "fedproto-lambda must be non-negative"):
             ExperimentConfig.from_run_config({"fedproto-lambda": -0.1})

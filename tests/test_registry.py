@@ -45,6 +45,7 @@ class RegistryTest(unittest.TestCase):
             "feddyn",
             "feddc",
             "fedexp",
+            "fedsam",
             "fedntd",
             "fedproto",
             "ditto",

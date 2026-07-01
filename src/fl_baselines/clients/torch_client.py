@@ -22,6 +22,7 @@ from fl_baselines.training.ditto import train_ditto_personalized
 from fl_baselines.training.evaluate import evaluate_model
 from fl_baselines.training.feddc import train_feddc_client
 from fl_baselines.training.feddyn import train_feddyn_client, update_feddyn_state
+from fl_baselines.training.fedsam import train_fedsam_client
 from fl_baselines.training.fedntd import train_fedntd_client
 from fl_baselines.training.fedproto import train_fedproto_client
 from fl_baselines.training.moon import train_moon_client
@@ -83,6 +84,8 @@ class TorchFlowerClient(NumPyClient):
             return self._fit_feddyn(parameters, config)
         if algorithm == "feddc":
             return self._fit_feddc(parameters, config)
+        if algorithm == "fedsam":
+            return self._fit_fedsam(parameters, config)
         if algorithm == "fedproto":
             return self._fit_fedproto(parameters, config)
         if algorithm == "fedntd":
@@ -295,6 +298,26 @@ class TorchFlowerClient(NumPyClient):
             len(self.loaders.train.dataset),
             metrics,
         )
+
+    def _fit_fedsam(
+        self,
+        parameters: list[np.ndarray],
+        config: dict[str, bool | bytes | float | int | str],
+    ) -> tuple[list[np.ndarray], int, dict[str, bool | bytes | float | int | str]]:
+        set_model_parameters(self.model, parameters)
+
+        local_epochs = int(config.get("local_epochs", self.config.local_epochs))
+        learning_rate = float(config.get("learning_rate", self.config.learning_rate))
+        fedsam_rho = float(config.get("fedsam_rho", self.config.fedsam_rho))
+        metrics = train_fedsam_client(
+            self.model,
+            self.loaders.train,
+            epochs=local_epochs,
+            learning_rate=learning_rate,
+            device=self.config.device,
+            fedsam_rho=fedsam_rho,
+        )
+        return get_model_parameters(self.model), len(self.loaders.train.dataset), metrics
 
     def _fit_ditto(
         self,

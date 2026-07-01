@@ -76,6 +76,9 @@ feddc-alpha = 0.01
 # FedExP
 fedexp-epsilon = 0.001
 
+# FedSAM
+fedsam-rho = 0.5
+
 # FedProto
 fedproto-lambda = 1.0
 

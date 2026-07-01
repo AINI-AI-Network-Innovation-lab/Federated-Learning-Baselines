@@ -163,6 +163,7 @@ Các algorithm hiện có:
 - `feddc`
 - `feddyn`
 - `fedexp`
+- `fedsam`
 - `fedntd`
 - `fedproto`
 - `fednova`
@@ -184,6 +185,7 @@ Algorithm builder nên đảm bảo:
 - nếu thuật toán chỉ đổi server aggregation mà vẫn giữ local training path mặc định, như FedExP, ưu tiên implement gọn trong `algorithms/` thay vì mở nhánh riêng ở `TorchFlowerClient`
 - nếu thuật toán regularize tren embedding space nhu FedProto, uu tien them helper trich feature rieng thay vi thay doi `forward()` contract cua toan bo model
 - nếu thuật toán chỉ đổi local objective nhưng không cần client state xuyên round, như FedNTD, vẫn nên tách helper riêng trong `training/` và route bằng nhánh `algorithm` trong `TorchFlowerClient`
+- nếu thuật toán chỉ đổi local optimizer nhưng vẫn aggregate như FedAvg, như FedSAM, uu tien them helper local training rieng va giu server strategy don gian
 
 ## Cách Thêm Một Baseline Hoàn Chỉnh
 
