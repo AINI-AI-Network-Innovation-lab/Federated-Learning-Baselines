@@ -184,8 +184,10 @@ Algorithm builder nên đảm bảo:
 - nếu thuật toán cần state ở cả client và payload tensor phía server, như FedDC hoặc SCAFFOLD, hãy truyền state đó bằng parameter payload thay vì nhét vào scalar metrics
 - nếu thuật toán chỉ đổi server aggregation mà vẫn giữ local training path mặc định, như FedExP, ưu tiên implement gọn trong `algorithms/` thay vì mở nhánh riêng ở `TorchFlowerClient`
 - nếu thuật toán regularize tren embedding space nhu FedProto, uu tien them helper trich feature rieng thay vi thay doi `forward()` contract cua toan bo model
+- nếu thuật toán regularize tren embedding space nhưng vẫn trả raw local model như FedDecorr, hãy giữ server strategy kiểu FedAvg và cô lập regularizer trong `training/`
 - nếu thuật toán chỉ đổi local objective nhưng không cần client state xuyên round, như FedNTD, vẫn nên tách helper riêng trong `training/` và route bằng nhánh `algorithm` trong `TorchFlowerClient`
 - nếu thuật toán chỉ đổi local optimizer nhưng vẫn aggregate như FedAvg, như FedSAM, uu tien them helper local training rieng va giu server strategy don gian
+- nếu thuật toán cần client state xuyên round và client payload khác local model thô, như FedSpeed, hãy persist state theo `client_id` trong `output-dir` và trả payload mới thay vì sửa app entrypoints
 
 ## Cách Thêm Một Baseline Hoàn Chỉnh
 

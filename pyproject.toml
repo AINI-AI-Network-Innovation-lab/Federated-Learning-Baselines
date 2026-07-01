@@ -73,8 +73,16 @@ feddyn-alpha = 0.1
 # FedDC
 feddc-alpha = 0.01
 
+# FedDecorr
+feddecorr-beta = 0.1
+
 # FedExP
 fedexp-epsilon = 0.001
+
+# FedSpeed
+fedspeed-lambda = 0.1
+fedspeed-alpha = 1.0
+fedspeed-rho = 0.1
 
 # FedSAM
 fedsam-rho = 0.5

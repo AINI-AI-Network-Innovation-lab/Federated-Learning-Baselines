@@ -9,9 +9,11 @@ Mỗi algorithm có một file riêng để dễ mở rộng khi thêm baseline 
 | FedAdp | [fedadp.md](fedadp.md) |
 | Ditto | [ditto.md](ditto.md) |
 | FedDC | [feddc.md](feddc.md) |
+| FedDecorr | [feddecorr.md](feddecorr.md) |
 | FedDyn | [feddyn.md](feddyn.md) |
 | FedExP | [fedexp.md](fedexp.md) |
 | FedSAM | [fedsam.md](fedsam.md) |
+| FedSpeed | [fedspeed.md](fedspeed.md) |
 | FedNTD | [fedntd.md](fedntd.md) |
 | FedProto | [fedproto.md](fedproto.md) |
 | FedNova | [fednova.md](fednova.md) |

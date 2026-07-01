@@ -21,9 +21,11 @@ Phiên bản hiện tại có baseline đầu tiên:
 | FedAdp MNIST CNN | FedAdp | MNIST | CNN nhỏ cho ảnh 28x28 | IID, Dirichlet |
 | Ditto MNIST CNN | Ditto | MNIST | CNN nhỏ cho ảnh 28x28 | IID, Dirichlet |
 | FedDC MNIST CNN | FedDC | MNIST | CNN nhỏ cho ảnh 28x28 | IID, Dirichlet |
+| FedDecorr MNIST CNN | FedDecorr | MNIST | CNN nhỏ cho ảnh 28x28 | IID, Dirichlet |
 | FedDyn MNIST CNN | FedDyn | MNIST | CNN nhỏ cho ảnh 28x28 | IID, Dirichlet |
 | FedExP MNIST CNN | FedExP | MNIST | CNN nhỏ cho ảnh 28x28 | IID, Dirichlet |
 | FedSAM MNIST CNN | FedSAM | MNIST | CNN nhỏ cho ảnh 28x28 | IID, Dirichlet |
+| FedSpeed MNIST CNN | FedSpeed | MNIST | CNN nhỏ cho ảnh 28x28 | IID, Dirichlet |
 | FedNTD MNIST CNN | FedNTD | MNIST | CNN nhỏ cho ảnh 28x28 | IID, Dirichlet |
 | FedProto MNIST CNN | FedProto | MNIST | CNN nhỏ cho ảnh 28x28 | IID, Dirichlet |
 | FedNova MNIST CNN | FedNova | MNIST | CNN nhỏ cho ảnh 28x28 | IID, Dirichlet |

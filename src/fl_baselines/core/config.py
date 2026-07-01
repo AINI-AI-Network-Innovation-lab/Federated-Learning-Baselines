@@ -49,7 +49,11 @@ class ExperimentConfig:
     fedadp_alpha: float = 5.0
     feddyn_alpha: float = 0.1
     feddc_alpha: float = 0.01
+    feddecorr_beta: float = 0.1
     fedexp_epsilon: float = 0.001
+    fedspeed_lambda: float = 0.1
+    fedspeed_alpha: float = 1.0
+    fedspeed_rho: float = 0.1
     fedsam_rho: float = 0.5
     fedproto_lambda: float = 1.0
     fedntd_beta: float = 1.0
@@ -127,10 +131,30 @@ class ExperimentConfig:
                 "feddc-alpha",
                 cls.feddc_alpha,
             ),
+            feddecorr_beta=_as_float(
+                run_config,
+                "feddecorr-beta",
+                cls.feddecorr_beta,
+            ),
             fedexp_epsilon=_as_float(
                 run_config,
                 "fedexp-epsilon",
                 cls.fedexp_epsilon,
+            ),
+            fedspeed_lambda=_as_float(
+                run_config,
+                "fedspeed-lambda",
+                cls.fedspeed_lambda,
+            ),
+            fedspeed_alpha=_as_float(
+                run_config,
+                "fedspeed-alpha",
+                cls.fedspeed_alpha,
+            ),
+            fedspeed_rho=_as_float(
+                run_config,
+                "fedspeed-rho",
+                cls.fedspeed_rho,
             ),
             fedsam_rho=_as_float(
                 run_config,
@@ -245,8 +269,16 @@ class ExperimentConfig:
             raise ValueError("feddyn-alpha must be positive")
         if self.feddc_alpha <= 0:
             raise ValueError("feddc-alpha must be positive")
+        if self.feddecorr_beta < 0:
+            raise ValueError("feddecorr-beta must be non-negative")
         if self.fedexp_epsilon < 0:
             raise ValueError("fedexp-epsilon must be non-negative")
+        if self.fedspeed_lambda <= 0:
+            raise ValueError("fedspeed-lambda must be positive")
+        if not 0 <= self.fedspeed_alpha <= 1:
+            raise ValueError("fedspeed-alpha must be in [0, 1]")
+        if self.fedspeed_rho < 0:
+            raise ValueError("fedspeed-rho must be non-negative")
         if self.fedsam_rho < 0:
             raise ValueError("fedsam-rho must be non-negative")
         if self.fedproto_lambda < 0:

@@ -42,9 +42,11 @@ Mỗi algorithm có một file riêng trong `docs/algorithms/` để dễ mở r
 | [algorithms/fedadp.md](algorithms/fedadp.md) | FedAdp adaptive weighting theo góc giữa local/global update. |
 | [algorithms/ditto.md](algorithms/ditto.md) | Ditto personalized local model regularized toward the global model. |
 | [algorithms/feddc.md](algorithms/feddc.md) | FedDC local drift decoupling với persisted client drift/update state và server average update state. |
+| [algorithms/feddecorr.md](algorithms/feddecorr.md) | FedDecorr them decorrelation regularization tren representation features, giu server aggregation kieu FedAvg. |
 | [algorithms/feddyn.md](algorithms/feddyn.md) | FedDyn dynamic regularization với persisted client state và server correction state. |
 | [algorithms/fedexp.md](algorithms/fedexp.md) | FedExP adaptive server extrapolation step trên pseudo-gradients, giữ local training path như FedAvg. |
 | [algorithms/fedsam.md](algorithms/fedsam.md) | FedSAM local Sharpness Aware Minimization tren client, giu server aggregation kieu FedAvg. |
+| [algorithms/fedspeed.md](algorithms/fedspeed.md) | FedSpeed quasi-gradient local training voi persisted client state `g_hat` va amended client payload gui server. |
 | [algorithms/fedntd.md](algorithms/fedntd.md) | FedNTD not-true distillation từ global teacher snapshot trong local training. |
 | [algorithms/fedproto.md](algorithms/fedproto.md) | FedProto prototype aggregation với embedding regularization, giữ classifier/eval pipeline hiện tại. |
 | [algorithms/fednova.md](algorithms/fednova.md) | FedNova normalized averaging và client update metrics. |

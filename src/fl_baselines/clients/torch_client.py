@@ -21,8 +21,10 @@ from fl_baselines.core.types import ClientDataLoaders
 from fl_baselines.training.ditto import train_ditto_personalized
 from fl_baselines.training.evaluate import evaluate_model
 from fl_baselines.training.feddc import train_feddc_client
+from fl_baselines.training.feddecorr import train_feddecorr_client
 from fl_baselines.training.feddyn import train_feddyn_client, update_feddyn_state
 from fl_baselines.training.fedsam import train_fedsam_client
+from fl_baselines.training.fedspeed import train_fedspeed_client
 from fl_baselines.training.fedntd import train_fedntd_client
 from fl_baselines.training.fedproto import train_fedproto_client
 from fl_baselines.training.moon import train_moon_client
@@ -84,8 +86,12 @@ class TorchFlowerClient(NumPyClient):
             return self._fit_feddyn(parameters, config)
         if algorithm == "feddc":
             return self._fit_feddc(parameters, config)
+        if algorithm == "feddecorr":
+            return self._fit_feddecorr(parameters, config)
         if algorithm == "fedsam":
             return self._fit_fedsam(parameters, config)
+        if algorithm == "fedspeed":
+            return self._fit_fedspeed(parameters, config)
         if algorithm == "fedproto":
             return self._fit_fedproto(parameters, config)
         if algorithm == "fedntd":
@@ -319,6 +325,65 @@ class TorchFlowerClient(NumPyClient):
         )
         return get_model_parameters(self.model), len(self.loaders.train.dataset), metrics
 
+    def _fit_feddecorr(
+        self,
+        parameters: list[np.ndarray],
+        config: dict[str, bool | bytes | float | int | str],
+    ) -> tuple[list[np.ndarray], int, dict[str, bool | bytes | float | int | str]]:
+        set_model_parameters(self.model, parameters)
+
+        local_epochs = int(config.get("local_epochs", self.config.local_epochs))
+        learning_rate = float(config.get("learning_rate", self.config.learning_rate))
+        feddecorr_beta = float(
+            config.get("feddecorr_beta", self.config.feddecorr_beta)
+        )
+        metrics = train_feddecorr_client(
+            self.model,
+            self.loaders.train,
+            epochs=local_epochs,
+            learning_rate=learning_rate,
+            device=self.config.device,
+            feddecorr_beta=feddecorr_beta,
+        )
+        return get_model_parameters(self.model), len(self.loaders.train.dataset), metrics
+
+    def _fit_fedspeed(
+        self,
+        parameters: list[np.ndarray],
+        config: dict[str, bool | bytes | float | int | str],
+    ) -> tuple[list[np.ndarray], int, dict[str, bool | bytes | float | int | str]]:
+        set_model_parameters(self.model, parameters)
+        global_model = copy.deepcopy(self.model)
+        state = self._load_fedspeed_state()
+
+        local_epochs = int(config.get("local_epochs", self.config.local_epochs))
+        learning_rate = float(config.get("learning_rate", self.config.learning_rate))
+        fedspeed_lambda = float(
+            config.get("fedspeed_lambda", self.config.fedspeed_lambda)
+        )
+        fedspeed_alpha = float(
+            config.get("fedspeed_alpha", self.config.fedspeed_alpha)
+        )
+        fedspeed_rho = float(config.get("fedspeed_rho", self.config.fedspeed_rho))
+        metrics, new_state, payload = train_fedspeed_client(
+            self.model,
+            global_model,
+            self.loaders.train,
+            epochs=local_epochs,
+            learning_rate=learning_rate,
+            device=self.config.device,
+            fedspeed_lambda=fedspeed_lambda,
+            fedspeed_alpha=fedspeed_alpha,
+            fedspeed_rho=fedspeed_rho,
+            state=state,
+        )
+        self._save_fedspeed_state(new_state)
+        return (
+            [tensor.detach().cpu().numpy() for tensor in payload],
+            len(self.loaders.train.dataset),
+            metrics,
+        )
+
     def _fit_ditto(
         self,
         parameters: list[np.ndarray],
@@ -514,6 +579,35 @@ class TorchFlowerClient(NumPyClient):
                     tensor.detach().cpu().clone() for tensor in local_update_state
                 ],
             },
+            state_path,
+        )
+
+    def _fedspeed_state_path(self) -> Path:
+        return (
+            Path(self.config.output_dir)
+            / "fedspeed_clients"
+            / self.client_id
+            / "state.pt"
+        )
+
+    def _load_fedspeed_state(self) -> list[torch.Tensor]:
+        state_path = self._fedspeed_state_path()
+        if state_path.exists():
+            return torch.load(
+                state_path,
+                map_location="cpu",
+                weights_only=True,
+            )
+        return [
+            torch.zeros_like(value.detach().cpu())
+            for value in self.model.state_dict().values()
+        ]
+
+    def _save_fedspeed_state(self, state: list[torch.Tensor]) -> None:
+        state_path = self._fedspeed_state_path()
+        state_path.parent.mkdir(parents=True, exist_ok=True)
+        torch.save(
+            [tensor.detach().cpu().clone() for tensor in state],
             state_path,
         )
 

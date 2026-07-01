@@ -41,7 +41,11 @@ class ExperimentConfigTest(unittest.TestCase):
                 "fedadp-alpha": 4.0,
                 "feddyn-alpha": 0.2,
                 "feddc-alpha": 0.05,
+                "feddecorr-beta": 0.3,
                 "fedexp-epsilon": 0.01,
+                "fedspeed-lambda": 0.2,
+                "fedspeed-alpha": 0.8,
+                "fedspeed-rho": 0.15,
                 "fedsam-rho": 0.5,
                 "fedproto-lambda": 0.2,
                 "fedntd-beta": 1.2,
@@ -80,7 +84,11 @@ class ExperimentConfigTest(unittest.TestCase):
         self.assertEqual(config.fedadp_alpha, 4.0)
         self.assertEqual(config.feddyn_alpha, 0.2)
         self.assertEqual(config.feddc_alpha, 0.05)
+        self.assertEqual(config.feddecorr_beta, 0.3)
         self.assertEqual(config.fedexp_epsilon, 0.01)
+        self.assertEqual(config.fedspeed_lambda, 0.2)
+        self.assertEqual(config.fedspeed_alpha, 0.8)
+        self.assertEqual(config.fedspeed_rho, 0.15)
         self.assertEqual(config.fedsam_rho, 0.5)
         self.assertEqual(config.fedproto_lambda, 0.2)
         self.assertEqual(config.fedntd_beta, 1.2)
@@ -134,8 +142,23 @@ class ExperimentConfigTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "feddc-alpha must be positive"):
             ExperimentConfig.from_run_config({"feddc-alpha": 0.0})
 
+        with self.assertRaisesRegex(ValueError, "feddecorr-beta must be non-negative"):
+            ExperimentConfig.from_run_config({"feddecorr-beta": -0.1})
+
         with self.assertRaisesRegex(ValueError, "fedexp-epsilon must be non-negative"):
             ExperimentConfig.from_run_config({"fedexp-epsilon": -0.1})
+
+        with self.assertRaisesRegex(ValueError, "fedspeed-lambda must be positive"):
+            ExperimentConfig.from_run_config({"fedspeed-lambda": 0.0})
+
+        with self.assertRaisesRegex(ValueError, "fedspeed-alpha must be in"):
+            ExperimentConfig.from_run_config({"fedspeed-alpha": -0.1})
+
+        with self.assertRaisesRegex(ValueError, "fedspeed-alpha must be in"):
+            ExperimentConfig.from_run_config({"fedspeed-alpha": 1.1})
+
+        with self.assertRaisesRegex(ValueError, "fedspeed-rho must be non-negative"):
+            ExperimentConfig.from_run_config({"fedspeed-rho": -0.1})
 
         with self.assertRaisesRegex(ValueError, "fedsam-rho must be non-negative"):
             ExperimentConfig.from_run_config({"fedsam-rho": -0.1})

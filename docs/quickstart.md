@@ -68,8 +68,16 @@ feddyn-alpha = 0.1
 # FedDC
 feddc-alpha = 0.01
 
+# FedDecorr
+feddecorr-beta = 0.1
+
 # FedExP
 fedexp-epsilon = 0.001
+
+# FedSpeed
+fedspeed-lambda = 0.1
+fedspeed-alpha = 1.0
+fedspeed-rho = 0.1
 
 # FedSAM
 fedsam-rho = 0.5
@@ -171,10 +179,22 @@ flwr run . --run-config 'algorithm="feddyn" feddyn-alpha=0.1' --stream
 flwr run . --run-config 'algorithm="feddc" feddc-alpha=0.01' --stream
 ```
 
+## Chạy FedDecorr
+
+```bash
+flwr run . --run-config 'algorithm="feddecorr" feddecorr-beta=0.1' --stream
+```
+
 ## Chạy FedExP
 
 ```bash
 flwr run . --run-config 'algorithm="fedexp" fedexp-epsilon=0.001' --stream
+```
+
+## Chạy FedSpeed
+
+```bash
+flwr run . --run-config 'algorithm="fedspeed" fedspeed-lambda=0.1 fedspeed-alpha=1.0 fedspeed-rho=0.1' --stream
 ```
 
 ## Chạy FedSAM
