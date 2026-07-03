@@ -1,3 +1,4 @@
+import json
 import sys
 import tempfile
 import unittest
@@ -22,6 +23,8 @@ from fl_baselines.algorithms.fedadp import FedAdpBuilder, FedAdpStrategy
 from fl_baselines.algorithms.ditto import DittoBuilder
 from fl_baselines.algorithms.feddc import FedDCBuilder, FedDCStrategy
 from fl_baselines.algorithms.feddecorr import FedDecorrBuilder
+from fl_baselines.algorithms.fedent import FedEntBuilder
+from fl_baselines.algorithms.fedvck import FedVCKBuilder, FedVCKStrategy
 from fl_baselines.algorithms.feddyn import FedDynBuilder, FedDynStrategy
 from fl_baselines.algorithms.fedexp import FedExPBuilder, FedExPStrategy
 from fl_baselines.algorithms.fedsam import FedSAMBuilder
@@ -45,6 +48,12 @@ from fl_baselines.models.inception import InceptionBuilder
 from fl_baselines.training.evaluate import evaluate_model
 from fl_baselines.training.features import extract_features
 from fl_baselines.training.feddecorr import feddecorr_loss, train_feddecorr_client
+from fl_baselines.training.fedent import (
+    apply_fedent_eta_decay,
+    compute_fedent_learning_rate,
+    train_fedent_client,
+)
+from fl_baselines.training.fedvck import train_fedvck_client
 from fl_baselines.training.fedsam import train_fedsam_client
 from fl_baselines.training.fedspeed import train_fedspeed_client
 from fl_baselines.training.fedntd import train_fedntd_client
@@ -384,6 +393,116 @@ class ModelAndAlgorithmTest(unittest.TestCase):
                 model = model_builder.build_model(config)
                 strategy = FedSAMBuilder().build_strategy(config, model, evaluate_fn=None)
                 self.assertIsInstance(strategy, FedAvg)
+
+    def test_fedent_builder_creates_strategy(self) -> None:
+        config = ExperimentConfig.from_run_config(
+            {
+                "algorithm": "fedent",
+                "num-supernodes": 4,
+                "fedent-beta": 0.99,
+                "fedent-gamma": 0.95,
+            }
+        )
+        model = MnistCnnBuilder().build_model(config)
+
+        strategy = FedEntBuilder().build_strategy(config, model, evaluate_fn=None)
+        fit_config = strategy.on_fit_config_fn(1)
+
+        self.assertIsInstance(strategy, FedAvg)
+        self.assertEqual(strategy.min_fit_clients, 4)
+        self.assertEqual(fit_config["algorithm"], "fedent")
+        self.assertIn("fedent_phi1", fit_config)
+        self.assertIn("fedent_phi2", fit_config)
+        self.assertEqual(fit_config["fedent_beta"], 0.99)
+        self.assertEqual(fit_config["fedent_gamma"], 0.95)
+
+    def test_fedent_builder_supports_current_models(self) -> None:
+        cases = [
+            (MnistCnnBuilder(), {}),
+            (LeNetBuilder(), {}),
+            (
+                ResNet9Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                ResNet18Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                ResNet34Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                InceptionBuilder(),
+                {"input-channels": 3, "input-height": 75, "input-width": 75},
+            ),
+        ]
+
+        for model_builder, overrides in cases:
+            with self.subTest(model=model_builder.name):
+                config = ExperimentConfig.from_run_config(
+                    {"algorithm": "fedent", "num-supernodes": 2, **overrides}
+                )
+                model = model_builder.build_model(config)
+                strategy = FedEntBuilder().build_strategy(config, model, evaluate_fn=None)
+
+                self.assertIsInstance(strategy, FedAvg)
+                self.assertEqual(strategy.min_fit_clients, 2)
+
+    def test_fedvck_builder_creates_strategy(self) -> None:
+        config = ExperimentConfig.from_run_config(
+            {
+                "algorithm": "fedvck",
+                "num-supernodes": 4,
+                "fedvck-condensed-ratio": 0.02,
+                "fedvck-condensed-steps": 3,
+                "fedvck-server-replay-epochs": 2,
+            }
+        )
+        model = MnistCnnBuilder().build_model(config)
+
+        strategy = FedVCKBuilder().build_strategy(config, model, evaluate_fn=None)
+        fit_config = strategy.on_fit_config_fn(1)
+
+        self.assertIsInstance(strategy, FedVCKStrategy)
+        self.assertEqual(strategy.min_fit_clients, 4)
+        self.assertEqual(fit_config["algorithm"], "fedvck")
+        self.assertEqual(fit_config["fedvck_condensed_ratio"], 0.02)
+        self.assertEqual(fit_config["fedvck_condensed_steps"], 3)
+        self.assertEqual(fit_config["fedvck_server_replay_epochs"], 2)
+
+    def test_fedvck_builder_supports_current_models(self) -> None:
+        cases = [
+            (MnistCnnBuilder(), {}),
+            (LeNetBuilder(), {}),
+            (
+                ResNet9Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                ResNet18Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                ResNet34Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                InceptionBuilder(),
+                {"input-channels": 3, "input-height": 75, "input-width": 75},
+            ),
+        ]
+
+        for model_builder, overrides in cases:
+            with self.subTest(model=model_builder.name):
+                config = ExperimentConfig.from_run_config(
+                    {"algorithm": "fedvck", "num-supernodes": 2, **overrides}
+                )
+                model = model_builder.build_model(config)
+                strategy = FedVCKBuilder().build_strategy(config, model, evaluate_fn=None)
+
+                self.assertIsInstance(strategy, FedVCKStrategy)
+                self.assertEqual(strategy.min_fit_clients, 2)
 
     def test_feddyn_builder_creates_strategy(self) -> None:
         config = ExperimentConfig.from_run_config(
@@ -1121,6 +1240,156 @@ class ModelAndAlgorithmTest(unittest.TestCase):
         expected_update = (first_update[0] + 3.0 * second_update[0]) / 4.0
         np.testing.assert_allclose(parameters_to_ndarrays(aggregated_parameters)[0], expected_model)
         np.testing.assert_allclose(strategy.average_update_state[0], expected_update)
+
+    def test_fedent_strategy_updates_phi_state_after_aggregate_fit(self) -> None:
+        config = ExperimentConfig.from_run_config({"algorithm": "fedent", "num-supernodes": 2})
+        model = MnistCnnBuilder().build_model(config)
+        strategy = FedEntBuilder().build_strategy(config, model, evaluate_fn=None)
+
+        initial_phi2 = strategy._phi2
+        initial_parameters = get_model_parameters(model)
+        first_model = [parameter + 1.0 for parameter in initial_parameters]
+        second_model = [parameter + 3.0 for parameter in initial_parameters]
+        results = [
+            (
+                None,
+                FitRes(
+                    Status(Code.OK, ""),
+                    ndarrays_to_parameters(first_model),
+                    1,
+                    {"fedent_weight_sq_norm": 10.0},
+                ),
+            ),
+            (
+                None,
+                FitRes(
+                    Status(Code.OK, ""),
+                    ndarrays_to_parameters(second_model),
+                    3,
+                    {"fedent_weight_sq_norm": 30.0},
+                ),
+            ),
+        ]
+
+        aggregated_parameters, _ = strategy.aggregate_fit(1, results, [])
+
+        self.assertIsNotNone(aggregated_parameters)
+        self.assertNotEqual(strategy._phi2, initial_phi2)
+        self.assertEqual(len(strategy._phi1), len(initial_parameters))
+
+    def test_fedvck_strategy_updates_memory_after_aggregate_fit(self) -> None:
+        config = ExperimentConfig.from_run_config({"algorithm": "fedvck", "num-supernodes": 2})
+        model = MnistCnnBuilder().build_model(config)
+        strategy = FedVCKBuilder().build_strategy(config, model, evaluate_fn=None)
+
+        initial_parameters = get_model_parameters(model)
+        first_model = [parameter + 1.0 for parameter in initial_parameters]
+        second_model = [parameter + 3.0 for parameter in initial_parameters]
+        condensed_inputs = np.zeros((2, 1, 28, 28), dtype=np.float32)
+        condensed_labels = np.array([0, 1], dtype=np.int64)
+        first_prototype_sums = np.ones((10, 10), dtype=np.float32)
+        second_prototype_sums = np.full((10, 10), 3.0, dtype=np.float32)
+        first_counts = np.ones(10, dtype=np.float32)
+        second_counts = np.full(10, 3.0, dtype=np.float32)
+        results = [
+            (
+                None,
+                FitRes(
+                    Status(Code.OK, ""),
+                    ndarrays_to_parameters(
+                        first_model
+                        + [condensed_inputs, condensed_labels, first_prototype_sums, first_counts]
+                    ),
+                    1,
+                    {},
+                ),
+            ),
+            (
+                None,
+                FitRes(
+                    Status(Code.OK, ""),
+                    ndarrays_to_parameters(
+                        second_model
+                        + [condensed_inputs, condensed_labels, second_prototype_sums, second_counts]
+                    ),
+                    3,
+                    {},
+                ),
+            ),
+        ]
+
+        aggregated_parameters, metrics = strategy.aggregate_fit(1, results, [])
+
+        self.assertIsNotNone(aggregated_parameters)
+        self.assertEqual(metrics["fedvck_memory_size"], 2)
+        self.assertEqual(len(strategy.condensed_memory), 2)
+
+    def test_fedvck_strategy_caps_memory_rounds(self) -> None:
+        config = ExperimentConfig.from_run_config(
+            {
+                "algorithm": "fedvck",
+                "num-supernodes": 1,
+                "fedvck-max-memory-rounds": 2,
+            }
+        )
+        model = MnistCnnBuilder().build_model(config)
+        strategy = FedVCKBuilder().build_strategy(config, model, evaluate_fn=None)
+        initial_parameters = get_model_parameters(model)
+
+        for round_index in range(3):
+            payload = ndarrays_to_parameters(
+                initial_parameters
+                + [
+                    np.full((1, 1, 28, 28), float(round_index), dtype=np.float32),
+                    np.array([round_index % 10], dtype=np.int64),
+                    np.ones((10, 10), dtype=np.float32),
+                    np.ones(10, dtype=np.float32),
+                ]
+            )
+            strategy.aggregate_fit(
+                round_index + 1,
+                [(None, FitRes(Status(Code.OK, ""), payload, 1, {}))],
+                [],
+            )
+
+        self.assertLessEqual(len(strategy.condensed_memory), 2)
+
+    def test_fedvck_server_replay_updates_global_parameters(self) -> None:
+        config = ExperimentConfig.from_run_config(
+            {
+                "algorithm": "fedvck",
+                "num-supernodes": 1,
+                "fedvck-server-replay-epochs": 1,
+                "fedvck-server-replay-learning-rate": 0.05,
+            }
+        )
+        model = torch.nn.Linear(2, 2)
+        strategy = FedVCKBuilder().build_strategy(config, model, evaluate_fn=None)
+        initial_parameters = [parameter.copy() for parameter in get_model_parameters(model)]
+        local_model = [parameter.copy() for parameter in initial_parameters]
+        payload = ndarrays_to_parameters(
+            local_model
+            + [
+                np.array([[1.0, 0.0], [0.0, 1.0]], dtype=np.float32),
+                np.array([0, 1], dtype=np.int64),
+                np.array([[2.0, 0.0], [0.0, 2.0]], dtype=np.float32),
+                np.array([1.0, 1.0], dtype=np.float32),
+            ]
+        )
+
+        aggregated_parameters, _ = strategy.aggregate_fit(
+            1,
+            [(None, FitRes(Status(Code.OK, ""), payload, 1, {}))],
+            [],
+        )
+
+        updated_arrays = parameters_to_ndarrays(aggregated_parameters)
+        self.assertTrue(
+            any(
+                not np.array_equal(before, after)
+                for before, after in zip(initial_parameters, updated_arrays)
+            )
+        )
 
     def test_fedproto_strategy_aggregates_prototypes_by_class(self) -> None:
         model = torch.nn.Linear(2, 1, bias=False)
@@ -2384,6 +2653,289 @@ class ModelAndAlgorithmTest(unittest.TestCase):
 
         self.assertIn("train_loss", metrics)
         self.assertIn("train_accuracy", metrics)
+
+    def test_fedent_learning_rate_is_finite(self) -> None:
+        parameter_vector = torch.tensor([1.0, -2.0, 3.0], dtype=torch.float32)
+        gradient_vector = torch.tensor([0.2, -0.1, 0.05], dtype=torch.float32)
+
+        learning_rate = compute_fedent_learning_rate(
+            parameter_vector=parameter_vector,
+            gradient_vector=gradient_vector,
+            phi1_vector=parameter_vector.clone(),
+            phi2_scalar=14.0,
+            aggregation_weight=0.99,
+            epsilon=1e-8,
+            max_learning_rate=1.0,
+        )
+
+        self.assertTrue(torch.isfinite(torch.tensor(learning_rate)))
+        self.assertGreaterEqual(learning_rate, 0.0)
+        self.assertLessEqual(learning_rate, 1.0)
+
+    def test_fedent_decay_uses_previous_eta(self) -> None:
+        decayed = apply_fedent_eta_decay(
+            previous_eta=0.8,
+            current_eta=0.2,
+            gamma=0.9,
+        )
+
+        self.assertAlmostEqual(decayed, 0.74)
+
+    def test_fedent_learning_rate_handles_small_phi2(self) -> None:
+        learning_rate = compute_fedent_learning_rate(
+            parameter_vector=torch.tensor([1.0], dtype=torch.float32),
+            gradient_vector=torch.tensor([0.1], dtype=torch.float32),
+            phi1_vector=torch.tensor([1.0], dtype=torch.float32),
+            phi2_scalar=0.0,
+            aggregation_weight=0.99,
+            epsilon=1e-8,
+            max_learning_rate=0.5,
+        )
+
+        self.assertLessEqual(learning_rate, 0.5)
+
+    def test_fedent_local_training_updates_parameters(self) -> None:
+        model = torch.nn.Linear(2, 2)
+        loader = DataLoader(
+            TensorDataset(
+                torch.tensor(
+                    [[1.0, 0.0], [0.0, 1.0], [1.0, 1.0], [0.5, 0.5]],
+                    dtype=torch.float32,
+                ),
+                torch.tensor([0, 1, 0, 1], dtype=torch.long),
+            ),
+            batch_size=2,
+        )
+        initial_state = {
+            key: value.detach().clone() for key, value in model.state_dict().items()
+        }
+        phi1_vector = torch.cat([parameter.detach().flatten() for parameter in model.parameters()])
+
+        metrics = train_fedent_client(
+            model,
+            loader,
+            epochs=1,
+            learning_rate=0.01,
+            device="cpu",
+            phi1_vector=phi1_vector,
+            phi2_scalar=1.0,
+            fedent_beta=0.99,
+            fedent_gamma=0.99,
+            fedent_epsilon=1e-8,
+            fedent_max_learning_rate=1.0,
+            previous_eta=None,
+        )
+
+        self.assertIn("fedent_learning_rate", metrics)
+        self.assertTrue(
+            any(
+                not torch.equal(initial_state[key], model.state_dict()[key])
+                for key in initial_state
+            )
+        )
+
+    def test_train_fedvck_client_returns_payloads(self) -> None:
+        model = torch.nn.Linear(2, 2)
+        loader = DataLoader(
+            TensorDataset(
+                torch.tensor(
+                    [[1.0, 0.0], [0.0, 1.0], [1.0, 1.0], [0.5, 0.5]],
+                    dtype=torch.float32,
+                ),
+                torch.tensor([0, 1, 0, 1], dtype=torch.long),
+            ),
+            batch_size=2,
+        )
+
+        metrics, condensed_inputs, condensed_labels, prototype_sums, prototype_counts = (
+            train_fedvck_client(
+                model,
+                loader,
+                epochs=1,
+                learning_rate=0.05,
+                device="cpu",
+                condensed_ratio=0.5,
+                condensed_steps=1,
+                condensed_learning_rate=0.1,
+                importance_alpha=0.5,
+                enable_latent_constraints=False,
+                previous_model_state=None,
+            )
+        )
+
+        self.assertIn("fedvck_condensed_size", metrics)
+        self.assertEqual(condensed_inputs.shape[0], condensed_labels.shape[0])
+        self.assertTrue(np.isfinite(prototype_sums).all())
+        self.assertTrue(np.isfinite(prototype_counts).all())
+
+    def test_fedvck_client_persists_previous_state(self) -> None:
+        with tempfile.TemporaryDirectory() as output_dir:
+            config = ExperimentConfig.from_run_config(
+                {
+                    "algorithm": "fedvck",
+                    "output-dir": output_dir,
+                    "local-epochs": 1,
+                    "learning-rate": 0.05,
+                }
+            )
+            model = torch.nn.Linear(2, 2)
+            loader = DataLoader(
+                TensorDataset(
+                    torch.tensor(
+                        [[1.0, 0.0], [0.0, 1.0], [1.0, 1.0], [0.5, 0.5]],
+                        dtype=torch.float32,
+                    ),
+                    torch.tensor([0, 1, 0, 1], dtype=torch.long),
+                ),
+                batch_size=2,
+            )
+            client = TorchFlowerClient(
+                model,
+                loaders=type("Loaders", (), {"train": loader, "test": loader})(),
+                config=config,
+                client_id="fedvck-1",
+            )
+
+            client.fit(
+                get_model_parameters(model),
+                {
+                    "algorithm": "fedvck",
+                    "local_epochs": 1,
+                    "learning_rate": 0.05,
+                    "fedvck_condensed_ratio": 0.5,
+                    "fedvck_condensed_steps": 1,
+                    "fedvck_condensed_learning_rate": 0.1,
+                    "fedvck_importance_alpha": 0.5,
+                },
+            )
+
+            state_path = Path(output_dir) / "fedvck_clients" / "fedvck-1" / "state.pt"
+            self.assertTrue(state_path.exists())
+
+    def test_torch_flower_client_routes_fedvck_fit(self) -> None:
+        config = ExperimentConfig.from_run_config(
+            {
+                "algorithm": "fedvck",
+                "local-epochs": 1,
+                "learning-rate": 0.05,
+                "fedvck-condensed-ratio": 0.5,
+                "fedvck-condensed-steps": 1,
+                "fedvck-condensed-learning-rate": 0.1,
+                "fedvck-importance-alpha": 0.5,
+            }
+        )
+        model = torch.nn.Linear(2, 2)
+        loader = DataLoader(
+            TensorDataset(
+                torch.tensor(
+                    [[1.0, 0.0], [0.0, 1.0], [1.0, 1.0], [0.5, 0.5]],
+                    dtype=torch.float32,
+                ),
+                torch.tensor([0, 1, 0, 1], dtype=torch.long),
+            ),
+            batch_size=2,
+        )
+        client = TorchFlowerClient(
+            model,
+            loaders=type("Loaders", (), {"train": loader, "test": loader})(),
+            config=config,
+            client_id="fedvck-route",
+        )
+        initial_parameters = get_model_parameters(model)
+
+        with patch.object(
+            torch_client_module,
+            "train_fedvck_client",
+            return_value=(
+                {
+                    "train_loss": 1.0,
+                    "train_accuracy": 0.5,
+                    "fedvck_condensed_size": 2,
+                },
+                np.zeros((2, 2), dtype=np.float32),
+                np.array([0, 1], dtype=np.int64),
+                np.ones((2, 2), dtype=np.float32),
+                np.ones(2, dtype=np.float32),
+            ),
+        ) as mocked_trainer:
+            updated_parameters, num_examples, metrics = client.fit(
+                initial_parameters,
+                {
+                    "algorithm": "fedvck",
+                    "local_epochs": 1,
+                    "learning_rate": 0.05,
+                    "fedvck_condensed_ratio": 0.5,
+                    "fedvck_condensed_steps": 1,
+                    "fedvck_condensed_learning_rate": 0.1,
+                    "fedvck_importance_alpha": 0.5,
+                },
+            )
+
+        mocked_trainer.assert_called_once()
+        self.assertEqual(num_examples, len(loader.dataset))
+        self.assertEqual(len(updated_parameters), len(initial_parameters) + 4)
+        self.assertIn("fedvck_condensed_size", metrics)
+
+    def test_torch_flower_client_routes_fedent_fit(self) -> None:
+        config = ExperimentConfig.from_run_config(
+            {
+                "algorithm": "fedent",
+                "local-epochs": 1,
+                "learning-rate": 0.05,
+                "fedent-beta": 0.99,
+                "fedent-gamma": 0.99,
+                "fedent-epsilon": 1e-8,
+                "fedent-max-learning-rate": 1.0,
+            }
+        )
+        model = torch.nn.Linear(2, 2)
+        loader = DataLoader(
+            TensorDataset(
+                torch.tensor(
+                    [[1.0, 0.0], [0.0, 1.0], [1.0, 1.0], [0.5, 0.5]],
+                    dtype=torch.float32,
+                ),
+                torch.tensor([0, 1, 0, 1], dtype=torch.long),
+            ),
+            batch_size=2,
+        )
+        client = TorchFlowerClient(
+            model,
+            loaders=type("Loaders", (), {"train": loader, "test": loader})(),
+            config=config,
+            client_id="fedent-route",
+        )
+        initial_parameters = get_model_parameters(model)
+
+        with patch.object(
+            torch_client_module,
+            "train_fedent_client",
+            return_value={
+                "train_loss": 1.0,
+                "train_accuracy": 0.5,
+                "fedent_learning_rate": 0.1,
+            },
+        ) as mocked_trainer:
+            updated_parameters, num_examples, metrics = client.fit(
+                initial_parameters,
+                {
+                    "algorithm": "fedent",
+                    "local_epochs": 1,
+                    "learning_rate": 0.05,
+                    "fedent_beta": 0.99,
+                    "fedent_gamma": 0.99,
+                    "fedent_epsilon": 1e-8,
+                    "fedent_max_learning_rate": 1.0,
+                    "fedent_phi1": json.dumps([parameter.tolist() for parameter in initial_parameters]),
+                    "fedent_phi2": 1.0,
+                },
+            )
+
+        mocked_trainer.assert_called_once()
+        self.assertEqual(num_examples, len(loader.dataset))
+        self.assertEqual(len(updated_parameters), len(initial_parameters))
+        self.assertIn("fedent_learning_rate", metrics)
+        self.assertIn("fedent_weight_sq_norm", metrics)
 
 
 if __name__ == "__main__":

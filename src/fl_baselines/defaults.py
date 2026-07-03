@@ -15,6 +15,8 @@ def register_default_components() -> None:
     from fl_baselines.algorithms.ditto import DittoBuilder
     from fl_baselines.algorithms.feddc import FedDCBuilder
     from fl_baselines.algorithms.feddecorr import FedDecorrBuilder
+    from fl_baselines.algorithms.fedent import FedEntBuilder
+    from fl_baselines.algorithms.fedvck import FedVCKBuilder
     from fl_baselines.algorithms.feddyn import FedDynBuilder
     from fl_baselines.algorithms.fedexp import FedExPBuilder
     from fl_baselines.algorithms.fedsam import FedSAMBuilder
@@ -85,6 +87,10 @@ def register_default_components() -> None:
         ALGORITHMS.register("fedspeed", FedSpeedBuilder())
     if "fedsam" not in ALGORITHMS:
         ALGORITHMS.register("fedsam", FedSAMBuilder())
+    if "fedent" not in ALGORITHMS:
+        ALGORITHMS.register("fedent", FedEntBuilder())
+    if "fedvck" not in ALGORITHMS:
+        ALGORITHMS.register("fedvck", FedVCKBuilder())
     if "fedntd" not in ALGORITHMS:
         ALGORITHMS.register("fedntd", FedNTDBuilder())
     if "fedproto" not in ALGORITHMS:

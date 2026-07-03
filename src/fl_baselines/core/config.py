@@ -28,6 +28,19 @@ def _as_str(config: RunConfig, key: str, default: str) -> str:
     return str(value)
 
 
+def _as_bool(config: RunConfig, key: str, default: bool) -> bool:
+    value = _value(config, key, default)
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"1", "true", "yes", "on"}:
+            return True
+        if normalized in {"0", "false", "no", "off"}:
+            return False
+    return bool(value)
+
+
 @dataclass(frozen=True)
 class ExperimentConfig:
     algorithm: str = "fedavg"
@@ -55,6 +68,22 @@ class ExperimentConfig:
     fedspeed_alpha: float = 1.0
     fedspeed_rho: float = 0.1
     fedsam_rho: float = 0.5
+    fedent_beta: float = 0.99
+    fedent_gamma: float = 0.99
+    fedent_epsilon: float = 1e-8
+    fedent_fixed_point_steps: int = 1
+    fedent_max_learning_rate: float = 1.0
+    fedent_enable_decay: bool = True
+    fedvck_condensed_ratio: float = 0.01
+    fedvck_condensed_steps: int = 1
+    fedvck_condensed_learning_rate: float = 0.1
+    fedvck_importance_alpha: float = 0.5
+    fedvck_server_replay_epochs: int = 1
+    fedvck_server_replay_learning_rate: float = 0.01
+    fedvck_contrastive_temperature: float = 0.1
+    fedvck_hard_negative_k: int = 1
+    fedvck_enable_latent_constraints: bool = True
+    fedvck_max_memory_rounds: int = 4
     fedproto_lambda: float = 1.0
     fedntd_beta: float = 1.0
     fedntd_temperature: float = 1.0
@@ -160,6 +189,86 @@ class ExperimentConfig:
                 run_config,
                 "fedsam-rho",
                 cls.fedsam_rho,
+            ),
+            fedent_beta=_as_float(
+                run_config,
+                "fedent-beta",
+                cls.fedent_beta,
+            ),
+            fedent_gamma=_as_float(
+                run_config,
+                "fedent-gamma",
+                cls.fedent_gamma,
+            ),
+            fedent_epsilon=_as_float(
+                run_config,
+                "fedent-epsilon",
+                cls.fedent_epsilon,
+            ),
+            fedent_fixed_point_steps=_as_int(
+                run_config,
+                "fedent-fixed-point-steps",
+                cls.fedent_fixed_point_steps,
+            ),
+            fedent_max_learning_rate=_as_float(
+                run_config,
+                "fedent-max-learning-rate",
+                cls.fedent_max_learning_rate,
+            ),
+            fedent_enable_decay=_as_bool(
+                run_config,
+                "fedent-enable-decay",
+                cls.fedent_enable_decay,
+            ),
+            fedvck_condensed_ratio=_as_float(
+                run_config,
+                "fedvck-condensed-ratio",
+                cls.fedvck_condensed_ratio,
+            ),
+            fedvck_condensed_steps=_as_int(
+                run_config,
+                "fedvck-condensed-steps",
+                cls.fedvck_condensed_steps,
+            ),
+            fedvck_condensed_learning_rate=_as_float(
+                run_config,
+                "fedvck-condensed-learning-rate",
+                cls.fedvck_condensed_learning_rate,
+            ),
+            fedvck_importance_alpha=_as_float(
+                run_config,
+                "fedvck-importance-alpha",
+                cls.fedvck_importance_alpha,
+            ),
+            fedvck_server_replay_epochs=_as_int(
+                run_config,
+                "fedvck-server-replay-epochs",
+                cls.fedvck_server_replay_epochs,
+            ),
+            fedvck_server_replay_learning_rate=_as_float(
+                run_config,
+                "fedvck-server-replay-learning-rate",
+                cls.fedvck_server_replay_learning_rate,
+            ),
+            fedvck_contrastive_temperature=_as_float(
+                run_config,
+                "fedvck-contrastive-temperature",
+                cls.fedvck_contrastive_temperature,
+            ),
+            fedvck_hard_negative_k=_as_int(
+                run_config,
+                "fedvck-hard-negative-k",
+                cls.fedvck_hard_negative_k,
+            ),
+            fedvck_enable_latent_constraints=_as_bool(
+                run_config,
+                "fedvck-enable-latent-constraints",
+                cls.fedvck_enable_latent_constraints,
+            ),
+            fedvck_max_memory_rounds=_as_int(
+                run_config,
+                "fedvck-max-memory-rounds",
+                cls.fedvck_max_memory_rounds,
             ),
             fedproto_lambda=_as_float(
                 run_config,
@@ -281,6 +390,34 @@ class ExperimentConfig:
             raise ValueError("fedspeed-rho must be non-negative")
         if self.fedsam_rho < 0:
             raise ValueError("fedsam-rho must be non-negative")
+        if not 0 < self.fedent_beta < 1:
+            raise ValueError("fedent-beta must be in (0, 1)")
+        if not 0 <= self.fedent_gamma < 1:
+            raise ValueError("fedent-gamma must be in [0, 1)")
+        if self.fedent_epsilon <= 0:
+            raise ValueError("fedent-epsilon must be positive")
+        if self.fedent_fixed_point_steps <= 0:
+            raise ValueError("fedent-fixed-point-steps must be positive")
+        if self.fedent_max_learning_rate <= 0:
+            raise ValueError("fedent-max-learning-rate must be positive")
+        if self.fedvck_condensed_ratio <= 0:
+            raise ValueError("fedvck-condensed-ratio must be positive")
+        if self.fedvck_condensed_steps <= 0:
+            raise ValueError("fedvck-condensed-steps must be positive")
+        if self.fedvck_condensed_learning_rate <= 0:
+            raise ValueError("fedvck-condensed-learning-rate must be positive")
+        if not 0 <= self.fedvck_importance_alpha <= 1:
+            raise ValueError("fedvck-importance-alpha must be in [0, 1]")
+        if self.fedvck_server_replay_epochs <= 0:
+            raise ValueError("fedvck-server-replay-epochs must be positive")
+        if self.fedvck_server_replay_learning_rate <= 0:
+            raise ValueError("fedvck-server-replay-learning-rate must be positive")
+        if self.fedvck_contrastive_temperature <= 0:
+            raise ValueError("fedvck-contrastive-temperature must be positive")
+        if self.fedvck_hard_negative_k <= 0:
+            raise ValueError("fedvck-hard-negative-k must be positive")
+        if self.fedvck_max_memory_rounds <= 0:
+            raise ValueError("fedvck-max-memory-rounds must be positive")
         if self.fedproto_lambda < 0:
             raise ValueError("fedproto-lambda must be non-negative")
         if self.fedntd_beta < 0:

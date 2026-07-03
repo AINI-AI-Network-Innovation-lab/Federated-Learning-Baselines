@@ -45,6 +45,8 @@ Pipeline evaluation hiện dùng hai mức rõ ràng:
 | FedProto | 2022 | [FedProto: Federated Prototype Learning across Heterogeneous Clients](https://arxiv.org/abs/2105.00243) |
 | FedExP | 2023 | [FedExP: Speeding up Federated Averaging via Extrapolation](https://arxiv.org/abs/2301.09604) |
 | FedSpeed | 2023 | [FedSpeed: Larger Local Interval, Less Communication Round, and Higher Generalization Accuracy](https://arxiv.org/abs/2302.10429) |
+| FedEnt | 2024 | [Adaptive Federated Learning via New Entropy Approach](https://arxiv.org/abs/2303.14966) |
+| FedVCK | 2025 | FedVCK: Non-IID Robust and Communication-Efficient Federated Learning via Valuable Condensed Knowledge |
 
 ## Datasets
 

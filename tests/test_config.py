@@ -47,6 +47,21 @@ class ExperimentConfigTest(unittest.TestCase):
                 "fedspeed-alpha": 0.8,
                 "fedspeed-rho": 0.15,
                 "fedsam-rho": 0.5,
+                "fedent-beta": 0.99,
+                "fedent-gamma": 0.95,
+                "fedent-epsilon": 1e-7,
+                "fedent-fixed-point-steps": 3,
+                "fedent-max-learning-rate": 0.8,
+                "fedvck-condensed-ratio": 0.02,
+                "fedvck-condensed-steps": 3,
+                "fedvck-condensed-learning-rate": 0.4,
+                "fedvck-importance-alpha": 0.7,
+                "fedvck-server-replay-epochs": 2,
+                "fedvck-server-replay-learning-rate": 0.05,
+                "fedvck-contrastive-temperature": 0.2,
+                "fedvck-hard-negative-k": 2,
+                "fedvck-enable-latent-constraints": False,
+                "fedvck-max-memory-rounds": 4,
                 "fedproto-lambda": 0.2,
                 "fedntd-beta": 1.2,
                 "fedntd-temperature": 2.0,
@@ -90,6 +105,21 @@ class ExperimentConfigTest(unittest.TestCase):
         self.assertEqual(config.fedspeed_alpha, 0.8)
         self.assertEqual(config.fedspeed_rho, 0.15)
         self.assertEqual(config.fedsam_rho, 0.5)
+        self.assertEqual(config.fedent_beta, 0.99)
+        self.assertEqual(config.fedent_gamma, 0.95)
+        self.assertEqual(config.fedent_epsilon, 1e-7)
+        self.assertEqual(config.fedent_fixed_point_steps, 3)
+        self.assertEqual(config.fedent_max_learning_rate, 0.8)
+        self.assertEqual(config.fedvck_condensed_ratio, 0.02)
+        self.assertEqual(config.fedvck_condensed_steps, 3)
+        self.assertEqual(config.fedvck_condensed_learning_rate, 0.4)
+        self.assertEqual(config.fedvck_importance_alpha, 0.7)
+        self.assertEqual(config.fedvck_server_replay_epochs, 2)
+        self.assertEqual(config.fedvck_server_replay_learning_rate, 0.05)
+        self.assertEqual(config.fedvck_contrastive_temperature, 0.2)
+        self.assertEqual(config.fedvck_hard_negative_k, 2)
+        self.assertFalse(config.fedvck_enable_latent_constraints)
+        self.assertEqual(config.fedvck_max_memory_rounds, 4)
         self.assertEqual(config.fedproto_lambda, 0.2)
         self.assertEqual(config.fedntd_beta, 1.2)
         self.assertEqual(config.fedntd_temperature, 2.0)
@@ -162,6 +192,24 @@ class ExperimentConfigTest(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "fedsam-rho must be non-negative"):
             ExperimentConfig.from_run_config({"fedsam-rho": -0.1})
+
+        with self.assertRaisesRegex(ValueError, "fedent-beta must be in"):
+            ExperimentConfig.from_run_config({"fedent-beta": 1.0})
+
+        with self.assertRaisesRegex(ValueError, "fedent-gamma must be in"):
+            ExperimentConfig.from_run_config({"fedent-gamma": 1.0})
+
+        with self.assertRaisesRegex(ValueError, "fedent-epsilon must be positive"):
+            ExperimentConfig.from_run_config({"fedent-epsilon": 0.0})
+
+        with self.assertRaisesRegex(ValueError, "fedvck-condensed-ratio must be positive"):
+            ExperimentConfig.from_run_config({"fedvck-condensed-ratio": 0.0})
+
+        with self.assertRaisesRegex(ValueError, "fedvck-importance-alpha must be in"):
+            ExperimentConfig.from_run_config({"fedvck-importance-alpha": 1.1})
+
+        with self.assertRaisesRegex(ValueError, "fedvck-hard-negative-k must be positive"):
+            ExperimentConfig.from_run_config({"fedvck-hard-negative-k": 0})
 
         with self.assertRaisesRegex(ValueError, "fedproto-lambda must be non-negative"):
             ExperimentConfig.from_run_config({"fedproto-lambda": -0.1})

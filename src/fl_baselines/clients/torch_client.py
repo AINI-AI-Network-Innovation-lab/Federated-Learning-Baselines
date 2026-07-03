@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import json
 from collections import OrderedDict
 from pathlib import Path
 
@@ -22,6 +23,8 @@ from fl_baselines.training.ditto import train_ditto_personalized
 from fl_baselines.training.evaluate import evaluate_model
 from fl_baselines.training.feddc import train_feddc_client
 from fl_baselines.training.feddecorr import train_feddecorr_client
+from fl_baselines.training.fedent import train_fedent_client
+from fl_baselines.training.fedvck import train_fedvck_client
 from fl_baselines.training.feddyn import train_feddyn_client, update_feddyn_state
 from fl_baselines.training.fedsam import train_fedsam_client
 from fl_baselines.training.fedspeed import train_fedspeed_client
@@ -88,6 +91,10 @@ class TorchFlowerClient(NumPyClient):
             return self._fit_feddc(parameters, config)
         if algorithm == "feddecorr":
             return self._fit_feddecorr(parameters, config)
+        if algorithm == "fedent":
+            return self._fit_fedent(parameters, config)
+        if algorithm == "fedvck":
+            return self._fit_fedvck(parameters, config)
         if algorithm == "fedsam":
             return self._fit_fedsam(parameters, config)
         if algorithm == "fedspeed":
@@ -324,6 +331,160 @@ class TorchFlowerClient(NumPyClient):
             fedsam_rho=fedsam_rho,
         )
         return get_model_parameters(self.model), len(self.loaders.train.dataset), metrics
+
+    def _fit_fedent(
+        self,
+        parameters: list[np.ndarray],
+        config: dict[str, bool | bytes | float | int | str],
+    ) -> tuple[list[np.ndarray], int, dict[str, bool | bytes | float | int | str]]:
+        set_model_parameters(self.model, parameters)
+
+        local_epochs = int(config.get("local_epochs", self.config.local_epochs))
+        learning_rate = float(config.get("learning_rate", self.config.learning_rate))
+        fedent_beta = float(config.get("fedent_beta", self.config.fedent_beta))
+        fedent_gamma = float(config.get("fedent_gamma", self.config.fedent_gamma))
+        fedent_epsilon = float(config.get("fedent_epsilon", self.config.fedent_epsilon))
+        fedent_max_learning_rate = float(
+            config.get(
+                "fedent_max_learning_rate",
+                self.config.fedent_max_learning_rate,
+            )
+        )
+        fedent_enable_decay = bool(
+            config.get("fedent_enable_decay", self.config.fedent_enable_decay)
+        )
+        phi1_vector = self._deserialize_fedent_phi1(str(config.get("fedent_phi1", "[]")))
+        phi2_scalar = float(config.get("fedent_phi2", 0.0))
+        previous_eta = self._load_fedent_previous_eta() if fedent_enable_decay else None
+        metrics = train_fedent_client(
+            self.model,
+            self.loaders.train,
+            epochs=local_epochs,
+            learning_rate=learning_rate,
+            device=self.config.device,
+            phi1_vector=phi1_vector,
+            phi2_scalar=phi2_scalar,
+            fedent_beta=fedent_beta,
+            fedent_gamma=fedent_gamma,
+            fedent_epsilon=fedent_epsilon,
+            fedent_max_learning_rate=fedent_max_learning_rate,
+            previous_eta=previous_eta,
+        )
+        if fedent_enable_decay:
+            self._save_fedent_previous_eta(float(metrics["fedent_learning_rate"]))
+        metrics["fedent_weight_sq_norm"] = float(
+            sum(np.sum(np.square(parameter)) for parameter in get_model_parameters(self.model))
+        )
+        return get_model_parameters(self.model), len(self.loaders.train.dataset), metrics
+
+    def _fit_fedvck(
+        self,
+        parameters: list[np.ndarray],
+        config: dict[str, bool | bytes | float | int | str],
+    ) -> tuple[list[np.ndarray], int, dict[str, bool | bytes | float | int | str]]:
+        set_model_parameters(self.model, parameters)
+
+        local_epochs = int(config.get("local_epochs", self.config.local_epochs))
+        learning_rate = float(config.get("learning_rate", self.config.learning_rate))
+        condensed_ratio = float(
+            config.get("fedvck_condensed_ratio", self.config.fedvck_condensed_ratio)
+        )
+        condensed_steps = int(
+            config.get("fedvck_condensed_steps", self.config.fedvck_condensed_steps)
+        )
+        condensed_learning_rate = float(
+            config.get(
+                "fedvck_condensed_learning_rate",
+                self.config.fedvck_condensed_learning_rate,
+            )
+        )
+        importance_alpha = float(
+            config.get("fedvck_importance_alpha", self.config.fedvck_importance_alpha)
+        )
+        enable_latent_constraints = bool(
+            config.get(
+                "fedvck_enable_latent_constraints",
+                self.config.fedvck_enable_latent_constraints,
+            )
+        )
+        previous_model_state = self._load_fedvck_previous_model_state()
+        metrics, condensed_inputs, condensed_labels, prototype_sums, prototype_counts = (
+            train_fedvck_client(
+                self.model,
+                self.loaders.train,
+                epochs=local_epochs,
+                learning_rate=learning_rate,
+                device=self.config.device,
+                condensed_ratio=condensed_ratio,
+                condensed_steps=condensed_steps,
+                condensed_learning_rate=condensed_learning_rate,
+                importance_alpha=importance_alpha,
+                enable_latent_constraints=enable_latent_constraints,
+                previous_model_state=previous_model_state,
+            )
+        )
+        self._save_fedvck_previous_model_state()
+        return (
+            get_model_parameters(self.model)
+            + [condensed_inputs, condensed_labels, prototype_sums, prototype_counts],
+            len(self.loaders.train.dataset),
+            metrics,
+        )
+
+    def _deserialize_fedent_phi1(self, serialized_phi1: str) -> torch.Tensor:
+        values = json.loads(serialized_phi1)
+        if not values:
+            return torch.zeros(0, dtype=torch.float32)
+        arrays = [torch.tensor(value, dtype=torch.float32).flatten() for value in values]
+        return torch.cat(arrays)
+
+    def _fedent_state_path(self) -> Path:
+        return (
+            Path(self.config.output_dir)
+            / "fedent_clients"
+            / self.client_id
+            / "state.pt"
+        )
+
+    def _load_fedent_previous_eta(self) -> float | None:
+        state_path = self._fedent_state_path()
+        if not state_path.exists():
+            return None
+        state = torch.load(state_path, map_location="cpu", weights_only=True)
+        return float(state["previous_eta"])
+
+    def _save_fedent_previous_eta(self, previous_eta: float) -> None:
+        state_path = self._fedent_state_path()
+        state_path.parent.mkdir(parents=True, exist_ok=True)
+        torch.save({"previous_eta": float(previous_eta)}, state_path)
+
+    def _fedvck_state_path(self) -> Path:
+        return (
+            Path(self.config.output_dir)
+            / "fedvck_clients"
+            / self.client_id
+            / "state.pt"
+        )
+
+    def _load_fedvck_previous_model_state(self) -> dict[str, torch.Tensor] | None:
+        state_path = self._fedvck_state_path()
+        if not state_path.exists():
+            return None
+        state = torch.load(state_path, map_location="cpu", weights_only=True)
+        return state.get("previous_model_state")
+
+    def _save_fedvck_previous_model_state(self) -> None:
+        state_path = self._fedvck_state_path()
+        state_path.parent.mkdir(parents=True, exist_ok=True)
+        torch.save(
+            {
+                "previous_model_state": {
+                    key: value.detach().cpu().clone()
+                    for key, value in self.model.state_dict().items()
+                }
+            },
+            state_path,
+        )
 
     def _fit_feddecorr(
         self,
