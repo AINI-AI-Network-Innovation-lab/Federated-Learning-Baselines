@@ -12,6 +12,7 @@ Mỗi algorithm có một file riêng để dễ mở rộng khi thêm baseline 
 | FedDecorr | [feddecorr.md](feddecorr.md) |
 | FedEnt | [fedent.md](fedent.md) |
 | FedAAW | [fedaaw.md](fedaaw.md) |
+| FedDisco | [feddisco.md](feddisco.md) |
 | FedVCK | [fedvck.md](fedvck.md) |
 | FedDyn | [feddyn.md](feddyn.md) |
 | FedExP | [fedexp.md](fedexp.md) |

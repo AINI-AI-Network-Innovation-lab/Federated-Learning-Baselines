@@ -533,6 +533,43 @@ class ModelAndAlgorithmTest(unittest.TestCase):
         self.assertEqual(fit_config["algorithm"], "feddisco")
         self.assertEqual(fit_config["feddisco_metric"], "l2")
 
+    def test_feddisco_builder_supports_current_models(self) -> None:
+        cases = [
+            (MnistCnnBuilder(), {}),
+            (LeNetBuilder(), {}),
+            (
+                ResNet9Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                ResNet18Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                ResNet34Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                InceptionBuilder(),
+                {"input-channels": 3, "input-height": 75, "input-width": 75},
+            ),
+        ]
+
+        for model_builder, overrides in cases:
+            with self.subTest(model=model_builder.name):
+                config = ExperimentConfig.from_run_config(
+                    {"algorithm": "feddisco", "num-supernodes": 2, **overrides}
+                )
+                model = model_builder.build_model(config)
+                strategy = FedDiscoBuilder().build_strategy(
+                    config,
+                    model,
+                    evaluate_fn=None,
+                )
+
+                self.assertIsInstance(strategy, FedDiscoStrategy)
+                self.assertEqual(strategy.on_fit_config_fn(1)["algorithm"], "feddisco")
+
     def test_fedvck_builder_creates_strategy(self) -> None:
         config = ExperimentConfig.from_run_config(
             {

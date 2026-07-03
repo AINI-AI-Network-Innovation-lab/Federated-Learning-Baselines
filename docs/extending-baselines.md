@@ -163,6 +163,7 @@ Các algorithm hiện có:
 - `feddc`
 - `fedent`
 - `fedaaw`
+- `feddisco`
 - `fedvck`
 - `feddyn`
 - `fedexp`
