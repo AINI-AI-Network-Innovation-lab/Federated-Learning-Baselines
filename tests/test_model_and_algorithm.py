@@ -1333,6 +1333,106 @@ class ModelAndAlgorithmTest(unittest.TestCase):
         self.assertNotEqual(strategy._phi2, initial_phi2)
         self.assertEqual(len(strategy._phi1), len(initial_parameters))
 
+    def test_fedaaw_strategy_updates_trackers_after_aggregate_fit(self) -> None:
+        config = ExperimentConfig.from_run_config({"algorithm": "fedaaw", "num-supernodes": 2})
+        model = MnistCnnBuilder().build_model(config)
+        strategy = FedAAWBuilder().build_strategy(config, model, evaluate_fn=None)
+        initial_parameters = get_model_parameters(model)
+        results = [
+            (
+                type("Proxy", (), {"cid": "client-1"})(),
+                FitRes(
+                    Status(Code.OK, ""),
+                    ndarrays_to_parameters(initial_parameters),
+                    5,
+                    {"fedaaw_grad_norm_sq": 4.0},
+                ),
+            ),
+            (
+                type("Proxy", (), {"cid": "client-2"})(),
+                FitRes(
+                    Status(Code.OK, ""),
+                    ndarrays_to_parameters(initial_parameters),
+                    5,
+                    {"fedaaw_grad_norm_sq": 9.0},
+                ),
+            ),
+        ]
+
+        aggregated_parameters, _ = strategy.aggregate_fit(1, results, [])
+
+        self.assertIsNotNone(aggregated_parameters)
+        self.assertEqual(strategy.gradient_trackers["client-1"], 4.0)
+        self.assertEqual(strategy.gradient_trackers["client-2"], 9.0)
+
+    def test_fedaaw_strategy_gives_higher_weight_to_smaller_tracker(self) -> None:
+        config = ExperimentConfig.from_run_config(
+            {"algorithm": "fedaaw", "num-supernodes": 2, "fedaaw-beta": 0.5}
+        )
+        model = MnistCnnBuilder().build_model(config)
+        strategy = FedAAWBuilder().build_strategy(config, model, evaluate_fn=None)
+        initial_parameters = get_model_parameters(model)
+        shifted_parameters = [parameter + 1.0 for parameter in initial_parameters]
+        results = [
+            (
+                type("Proxy", (), {"cid": "client-a"})(),
+                FitRes(
+                    Status(Code.OK, ""),
+                    ndarrays_to_parameters(initial_parameters),
+                    5,
+                    {"fedaaw_grad_norm_sq": 1.0},
+                ),
+            ),
+            (
+                type("Proxy", (), {"cid": "client-b"})(),
+                FitRes(
+                    Status(Code.OK, ""),
+                    ndarrays_to_parameters(shifted_parameters),
+                    5,
+                    {"fedaaw_grad_norm_sq": 10.0},
+                ),
+            ),
+        ]
+
+        aggregated_parameters, _ = strategy.aggregate_fit(1, results, [])
+
+        self.assertIsNotNone(aggregated_parameters)
+        self.assertGreater(strategy.last_aggregation_weights[0], strategy.last_aggregation_weights[1])
+
+    def test_fedaaw_strategy_updates_tracker_running_average(self) -> None:
+        config = ExperimentConfig.from_run_config({"algorithm": "fedaaw", "num-supernodes": 1})
+        model = MnistCnnBuilder().build_model(config)
+        strategy = FedAAWBuilder().build_strategy(config, model, evaluate_fn=None)
+        initial_parameters = get_model_parameters(model)
+
+        first_results = [
+            (
+                type("Proxy", (), {"cid": "client-1"})(),
+                FitRes(
+                    Status(Code.OK, ""),
+                    ndarrays_to_parameters(initial_parameters),
+                    5,
+                    {"fedaaw_grad_norm_sq": 4.0},
+                ),
+            )
+        ]
+        second_results = [
+            (
+                type("Proxy", (), {"cid": "client-1"})(),
+                FitRes(
+                    Status(Code.OK, ""),
+                    ndarrays_to_parameters(initial_parameters),
+                    5,
+                    {"fedaaw_grad_norm_sq": 10.0},
+                ),
+            )
+        ]
+
+        strategy.aggregate_fit(1, first_results, [])
+        strategy.aggregate_fit(2, second_results, [])
+
+        self.assertAlmostEqual(strategy.gradient_trackers["client-1"], 7.0)
+
     def test_fedvck_strategy_updates_memory_after_aggregate_fit(self) -> None:
         config = ExperimentConfig.from_run_config({"algorithm": "fedvck", "num-supernodes": 2})
         model = MnistCnnBuilder().build_model(config)
