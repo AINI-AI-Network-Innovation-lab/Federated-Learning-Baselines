@@ -50,6 +50,11 @@ from fl_baselines.training.evaluate import evaluate_model
 from fl_baselines.training.features import extract_features
 from fl_baselines.training.feddecorr import feddecorr_loss, train_feddecorr_client
 from fl_baselines.training.fedaaw import train_fedaaw_client
+from fl_baselines.training.feddisco import (
+    compute_label_distribution,
+    compute_label_distribution_discrepancy,
+    train_feddisco_client,
+)
 from fl_baselines.training.fedent import (
     apply_fedent_eta_decay,
     compute_fedent_learning_rate,
@@ -2245,6 +2250,65 @@ class ModelAndAlgorithmTest(unittest.TestCase):
         self.assertIn("train_accuracy", metrics)
         self.assertIn("fedaaw_grad_norm_sq", metrics)
         self.assertGreaterEqual(metrics["fedaaw_grad_norm_sq"], 0.0)
+
+    def test_feddisco_discrepancy_is_lower_for_uniform_labels(self) -> None:
+        uniform_loader = DataLoader(
+            TensorDataset(torch.ones(4, 1), torch.tensor([0, 1, 0, 1])),
+            batch_size=2,
+        )
+        skewed_loader = DataLoader(
+            TensorDataset(torch.ones(4, 1), torch.tensor([0, 0, 0, 0])),
+            batch_size=2,
+        )
+
+        uniform = compute_label_distribution(uniform_loader, num_classes=2)
+        skewed = compute_label_distribution(skewed_loader, num_classes=2)
+
+        self.assertLess(
+            compute_label_distribution_discrepancy(
+                uniform,
+                metric="kl",
+                epsilon=1e-8,
+            ),
+            compute_label_distribution_discrepancy(
+                skewed,
+                metric="kl",
+                epsilon=1e-8,
+            ),
+        )
+
+    def test_feddisco_discrepancy_supports_all_metrics(self) -> None:
+        distribution = torch.tensor([1.0, 0.0])
+
+        for metric in ["kl", "l1", "l2", "cosine"]:
+            with self.subTest(metric=metric):
+                discrepancy = compute_label_distribution_discrepancy(
+                    distribution,
+                    metric=metric,
+                    epsilon=1e-8,
+                )
+                self.assertGreaterEqual(discrepancy, 0.0)
+
+    def test_train_feddisco_client_returns_discrepancy_metric(self) -> None:
+        model = torch.nn.Linear(1, 2)
+        loader = DataLoader(
+            TensorDataset(torch.ones(4, 1), torch.tensor([0, 1, 0, 1])),
+            batch_size=2,
+        )
+
+        metrics = train_feddisco_client(
+            model,
+            loader,
+            epochs=1,
+            learning_rate=0.01,
+            device="cpu",
+            num_classes=2,
+            metric="kl",
+            epsilon=1e-8,
+        )
+
+        self.assertIn("feddisco_discrepancy", metrics)
+        self.assertGreaterEqual(metrics["feddisco_discrepancy"], 0.0)
 
     def test_torch_flower_client_routes_fedaaw_fit(self) -> None:
         config = ExperimentConfig.from_run_config(
