@@ -162,6 +162,7 @@ Các algorithm hiện có:
 - `ditto`
 - `feddc`
 - `fedent`
+- `fedaaw`
 - `fedvck`
 - `feddyn`
 - `fedexp`
@@ -190,6 +191,7 @@ Algorithm builder nên đảm bảo:
 - nếu thuật toán chỉ đổi local objective nhưng không cần client state xuyên round, như FedNTD, vẫn nên tách helper riêng trong `training/` và route bằng nhánh `algorithm` trong `TorchFlowerClient`
 - nếu thuật toán chỉ đổi local optimizer nhưng vẫn aggregate như FedAvg, như FedSAM, uu tien them helper local training rieng va giu server strategy don gian
 - nếu thuật toán cần server-side shared state de tinh learning rate local nhưng van aggregate nhu FedAvg, nhu FedEnt, uu tien them strategy rieng de quan ly fit-config va mean-field state thay vi sua app entrypoints
+- nếu thuật toán chỉ doi server aggregation dua tren mot scalar metric moi client, nhu FedAAW, uu tien giu local objective mac dinh, tinh metric trong `training/`, va de strategy xu ly tracker/weighting trong `algorithms/`
 - nếu thuật toán cần client state xuyên round và client payload khác local model thô, như FedSpeed, hãy persist state theo `client_id` trong `output-dir` và trả payload mới thay vì sửa app entrypoints
 - nếu thuật toán cần client condensed payload va server replay tren memory tich luy, nhu FedVCK, uu tien tach helper local/server trong `training/`, giu payload order co dinh, va de strategy tu quan ly memory cap thay vi day logic vao app entrypoints
 

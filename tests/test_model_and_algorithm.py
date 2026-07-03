@@ -1433,6 +1433,44 @@ class ModelAndAlgorithmTest(unittest.TestCase):
 
         self.assertAlmostEqual(strategy.gradient_trackers["client-1"], 7.0)
 
+    def test_fedaaw_strategy_falls_back_when_weights_are_invalid(self) -> None:
+        config = ExperimentConfig.from_run_config(
+            {
+                "algorithm": "fedaaw",
+                "num-supernodes": 2,
+                "fedaaw-beta": 0.01,
+                "fedaaw-epsilon": 1e-8,
+            }
+        )
+        model = MnistCnnBuilder().build_model(config)
+        strategy = FedAAWBuilder().build_strategy(config, model, evaluate_fn=None)
+        initial_parameters = get_model_parameters(model)
+        results = [
+            (
+                type("Proxy", (), {"cid": "client-a"})(),
+                FitRes(
+                    Status(Code.OK, ""),
+                    ndarrays_to_parameters(initial_parameters),
+                    3,
+                    {"fedaaw_grad_norm_sq": float("nan")},
+                ),
+            ),
+            (
+                type("Proxy", (), {"cid": "client-b"})(),
+                FitRes(
+                    Status(Code.OK, ""),
+                    ndarrays_to_parameters(initial_parameters),
+                    1,
+                    {"fedaaw_grad_norm_sq": float("nan")},
+                ),
+            ),
+        ]
+
+        strategy.aggregate_fit(1, results, [])
+
+        self.assertAlmostEqual(strategy.last_aggregation_weights[0], 0.75)
+        self.assertAlmostEqual(strategy.last_aggregation_weights[1], 0.25)
+
     def test_fedvck_strategy_updates_memory_after_aggregate_fit(self) -> None:
         config = ExperimentConfig.from_run_config({"algorithm": "fedvck", "num-supernodes": 2})
         model = MnistCnnBuilder().build_model(config)

@@ -44,6 +44,7 @@ Mỗi algorithm có một file riêng trong `docs/algorithms/` để dễ mở r
 | [algorithms/feddc.md](algorithms/feddc.md) | FedDC local drift decoupling với persisted client drift/update state và server average update state. |
 | [algorithms/feddecorr.md](algorithms/feddecorr.md) | FedDecorr them decorrelation regularization tren representation features, giu server aggregation kieu FedAvg. |
 | [algorithms/fedent.md](algorithms/fedent.md) | FedEnt adaptive learning rate theo entropy va mean-field, giu server aggregation kieu FedAvg. |
+| [algorithms/fedaaw.md](algorithms/fedaaw.md) | FedAAW adaptive aggregation weights dua tren pre-update squared gradient norm cua tung client. |
 | [algorithms/fedvck.md](algorithms/fedvck.md) | FedVCK client condensed knowledge payload va server replay/contrastive update tren memory da thu thap. |
 | [algorithms/feddyn.md](algorithms/feddyn.md) | FedDyn dynamic regularization với persisted client state và server correction state. |
 | [algorithms/fedexp.md](algorithms/fedexp.md) | FedExP adaptive server extrapolation step trên pseudo-gradients, giữ local training path như FedAvg. |

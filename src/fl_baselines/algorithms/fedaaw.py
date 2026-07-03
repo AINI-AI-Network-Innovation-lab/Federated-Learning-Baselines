@@ -93,6 +93,8 @@ class FedAAWStrategy(FedAvg):
         ):
             client_key = _client_key(client_proxy, index)
             grad_norm_sq = float(fit_res.metrics.get("fedaaw_grad_norm_sq", 0.0))
+            if not math.isfinite(grad_norm_sq):
+                return sample_weights
             tracker = self._update_tracker(client_key, grad_norm_sq, round_index)
             score = sample_weight + (self.beta / max(tracker, self.epsilon)) - self.gamma
             scores.append(score)
