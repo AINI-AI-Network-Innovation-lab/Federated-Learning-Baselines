@@ -74,6 +74,9 @@ class ExperimentConfig:
     fedent_fixed_point_steps: int = 1
     fedent_max_learning_rate: float = 1.0
     fedent_enable_decay: bool = True
+    fedaaw_beta: float = 0.01
+    fedaaw_gamma: float = 1.0
+    fedaaw_epsilon: float = 1e-8
     fedvck_condensed_ratio: float = 0.01
     fedvck_condensed_steps: int = 1
     fedvck_condensed_learning_rate: float = 0.1
@@ -219,6 +222,21 @@ class ExperimentConfig:
                 run_config,
                 "fedent-enable-decay",
                 cls.fedent_enable_decay,
+            ),
+            fedaaw_beta=_as_float(
+                run_config,
+                "fedaaw-beta",
+                cls.fedaaw_beta,
+            ),
+            fedaaw_gamma=_as_float(
+                run_config,
+                "fedaaw-gamma",
+                cls.fedaaw_gamma,
+            ),
+            fedaaw_epsilon=_as_float(
+                run_config,
+                "fedaaw-epsilon",
+                cls.fedaaw_epsilon,
             ),
             fedvck_condensed_ratio=_as_float(
                 run_config,
@@ -400,6 +418,12 @@ class ExperimentConfig:
             raise ValueError("fedent-fixed-point-steps must be positive")
         if self.fedent_max_learning_rate <= 0:
             raise ValueError("fedent-max-learning-rate must be positive")
+        if self.fedaaw_beta <= 0:
+            raise ValueError("fedaaw-beta must be positive")
+        if self.fedaaw_gamma < 0:
+            raise ValueError("fedaaw-gamma must be non-negative")
+        if self.fedaaw_epsilon <= 0:
+            raise ValueError("fedaaw-epsilon must be positive")
         if self.fedvck_condensed_ratio <= 0:
             raise ValueError("fedvck-condensed-ratio must be positive")
         if self.fedvck_condensed_steps <= 0:

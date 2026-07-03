@@ -52,6 +52,9 @@ class ExperimentConfigTest(unittest.TestCase):
                 "fedent-epsilon": 1e-7,
                 "fedent-fixed-point-steps": 3,
                 "fedent-max-learning-rate": 0.8,
+                "fedaaw-beta": 0.02,
+                "fedaaw-gamma": 1.5,
+                "fedaaw-epsilon": 1e-7,
                 "fedvck-condensed-ratio": 0.02,
                 "fedvck-condensed-steps": 3,
                 "fedvck-condensed-learning-rate": 0.4,
@@ -110,6 +113,9 @@ class ExperimentConfigTest(unittest.TestCase):
         self.assertEqual(config.fedent_epsilon, 1e-7)
         self.assertEqual(config.fedent_fixed_point_steps, 3)
         self.assertEqual(config.fedent_max_learning_rate, 0.8)
+        self.assertEqual(config.fedaaw_beta, 0.02)
+        self.assertEqual(config.fedaaw_gamma, 1.5)
+        self.assertEqual(config.fedaaw_epsilon, 1e-7)
         self.assertEqual(config.fedvck_condensed_ratio, 0.02)
         self.assertEqual(config.fedvck_condensed_steps, 3)
         self.assertEqual(config.fedvck_condensed_learning_rate, 0.4)
@@ -201,6 +207,15 @@ class ExperimentConfigTest(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "fedent-epsilon must be positive"):
             ExperimentConfig.from_run_config({"fedent-epsilon": 0.0})
+
+        with self.assertRaisesRegex(ValueError, "fedaaw-beta must be positive"):
+            ExperimentConfig.from_run_config({"fedaaw-beta": 0.0})
+
+        with self.assertRaisesRegex(ValueError, "fedaaw-gamma must be non-negative"):
+            ExperimentConfig.from_run_config({"fedaaw-gamma": -0.1})
+
+        with self.assertRaisesRegex(ValueError, "fedaaw-epsilon must be positive"):
+            ExperimentConfig.from_run_config({"fedaaw-epsilon": 0.0})
 
         with self.assertRaisesRegex(ValueError, "fedvck-condensed-ratio must be positive"):
             ExperimentConfig.from_run_config({"fedvck-condensed-ratio": 0.0})

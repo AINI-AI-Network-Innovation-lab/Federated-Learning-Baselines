@@ -95,6 +95,11 @@ fedent-fixed-point-steps = 1
 fedent-max-learning-rate = 1.0
 fedent-enable-decay = true
 
+# FedAAW
+fedaaw-beta = 0.01
+fedaaw-gamma = 1.0
+fedaaw-epsilon = 1e-8
+
 # FedVCK
 fedvck-condensed-ratio = 0.01
 fedvck-condensed-steps = 1
