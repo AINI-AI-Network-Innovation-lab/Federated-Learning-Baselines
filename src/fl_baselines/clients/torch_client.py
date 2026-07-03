@@ -24,6 +24,7 @@ from fl_baselines.training.evaluate import evaluate_model
 from fl_baselines.training.fedaaw import train_fedaaw_client
 from fl_baselines.training.feddc import train_feddc_client
 from fl_baselines.training.feddecorr import train_feddecorr_client
+from fl_baselines.training.feddisco import train_feddisco_client
 from fl_baselines.training.fedent import train_fedent_client
 from fl_baselines.training.fedvck import train_fedvck_client
 from fl_baselines.training.feddyn import train_feddyn_client, update_feddyn_state
@@ -94,6 +95,8 @@ class TorchFlowerClient(NumPyClient):
             return self._fit_feddecorr(parameters, config)
         if algorithm == "fedaaw":
             return self._fit_fedaaw(parameters, config)
+        if algorithm == "feddisco":
+            return self._fit_feddisco(parameters, config)
         if algorithm == "fedent":
             return self._fit_fedent(parameters, config)
         if algorithm == "fedvck":
@@ -350,6 +353,30 @@ class TorchFlowerClient(NumPyClient):
             epochs=local_epochs,
             learning_rate=learning_rate,
             device=self.config.device,
+        )
+        return get_model_parameters(self.model), len(self.loaders.train.dataset), metrics
+
+    def _fit_feddisco(
+        self,
+        parameters: list[np.ndarray],
+        config: dict[str, bool | bytes | float | int | str],
+    ) -> tuple[list[np.ndarray], int, dict[str, bool | bytes | float | int | str]]:
+        set_model_parameters(self.model, parameters)
+
+        local_epochs = int(config.get("local_epochs", self.config.local_epochs))
+        learning_rate = float(config.get("learning_rate", self.config.learning_rate))
+        num_classes = int(config.get("num_classes", self.config.num_classes))
+        metric = str(config.get("feddisco_metric", self.config.feddisco_metric))
+        epsilon = float(config.get("feddisco_epsilon", self.config.feddisco_epsilon))
+        metrics = train_feddisco_client(
+            self.model,
+            self.loaders.train,
+            epochs=local_epochs,
+            learning_rate=learning_rate,
+            device=self.config.device,
+            num_classes=num_classes,
+            metric=metric,
+            epsilon=epsilon,
         )
         return get_model_parameters(self.model), len(self.loaders.train.dataset), metrics
 

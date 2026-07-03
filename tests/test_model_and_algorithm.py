@@ -2458,6 +2458,55 @@ class ModelAndAlgorithmTest(unittest.TestCase):
         self.assertEqual(len(updated_parameters), len(initial_parameters))
         self.assertIn("fedaaw_grad_norm_sq", metrics)
 
+    def test_torch_flower_client_routes_feddisco_fit(self) -> None:
+        config = ExperimentConfig.from_run_config(
+            {
+                "algorithm": "feddisco",
+                "local-epochs": 1,
+                "learning-rate": 0.05,
+                "num-classes": 2,
+                "feddisco-metric": "kl",
+            }
+        )
+        model = torch.nn.Linear(1, 2)
+        loader = DataLoader(
+            TensorDataset(torch.ones(4, 1), torch.tensor([0, 1, 0, 1])),
+            batch_size=2,
+        )
+        client = TorchFlowerClient(
+            model,
+            loaders=type("Loaders", (), {"train": loader, "test": loader})(),
+            config=config,
+            client_id="feddisco-route",
+        )
+        initial_parameters = get_model_parameters(model)
+
+        with patch.object(
+            torch_client_module,
+            "train_feddisco_client",
+            return_value={
+                "train_loss": 0.5,
+                "train_accuracy": 0.5,
+                "feddisco_discrepancy": 0.25,
+            },
+        ) as mocked_trainer:
+            updated_parameters, num_examples, metrics = client.fit(
+                initial_parameters,
+                {
+                    "algorithm": "feddisco",
+                    "local_epochs": 1,
+                    "learning_rate": 0.05,
+                    "num_classes": 2,
+                    "feddisco_metric": "kl",
+                    "feddisco_epsilon": 1e-8,
+                },
+            )
+
+        mocked_trainer.assert_called_once()
+        self.assertEqual(num_examples, len(loader.dataset))
+        self.assertEqual(len(updated_parameters), len(initial_parameters))
+        self.assertIn("feddisco_discrepancy", metrics)
+
     def test_torch_flower_client_routes_feddecorr_to_dedicated_trainer(self) -> None:
         config = ExperimentConfig.from_run_config(
             {
