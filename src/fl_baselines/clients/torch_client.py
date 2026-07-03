@@ -21,6 +21,7 @@ from fl_baselines.core.config import ExperimentConfig
 from fl_baselines.core.types import ClientDataLoaders
 from fl_baselines.training.ditto import train_ditto_personalized
 from fl_baselines.training.evaluate import evaluate_model
+from fl_baselines.training.fedaaw import train_fedaaw_client
 from fl_baselines.training.feddc import train_feddc_client
 from fl_baselines.training.feddecorr import train_feddecorr_client
 from fl_baselines.training.fedent import train_fedent_client
@@ -91,6 +92,8 @@ class TorchFlowerClient(NumPyClient):
             return self._fit_feddc(parameters, config)
         if algorithm == "feddecorr":
             return self._fit_feddecorr(parameters, config)
+        if algorithm == "fedaaw":
+            return self._fit_fedaaw(parameters, config)
         if algorithm == "fedent":
             return self._fit_fedent(parameters, config)
         if algorithm == "fedvck":
@@ -329,6 +332,24 @@ class TorchFlowerClient(NumPyClient):
             learning_rate=learning_rate,
             device=self.config.device,
             fedsam_rho=fedsam_rho,
+        )
+        return get_model_parameters(self.model), len(self.loaders.train.dataset), metrics
+
+    def _fit_fedaaw(
+        self,
+        parameters: list[np.ndarray],
+        config: dict[str, bool | bytes | float | int | str],
+    ) -> tuple[list[np.ndarray], int, dict[str, bool | bytes | float | int | str]]:
+        set_model_parameters(self.model, parameters)
+
+        local_epochs = int(config.get("local_epochs", self.config.local_epochs))
+        learning_rate = float(config.get("learning_rate", self.config.learning_rate))
+        metrics = train_fedaaw_client(
+            self.model,
+            self.loaders.train,
+            epochs=local_epochs,
+            learning_rate=learning_rate,
+            device=self.config.device,
         )
         return get_model_parameters(self.model), len(self.loaders.train.dataset), metrics
 

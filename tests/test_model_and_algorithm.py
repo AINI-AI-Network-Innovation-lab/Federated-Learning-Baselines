@@ -49,6 +49,7 @@ from fl_baselines.models.inception import InceptionBuilder
 from fl_baselines.training.evaluate import evaluate_model
 from fl_baselines.training.features import extract_features
 from fl_baselines.training.feddecorr import feddecorr_loss, train_feddecorr_client
+from fl_baselines.training.fedaaw import train_fedaaw_client
 from fl_baselines.training.fedent import (
     apply_fedent_eta_decay,
     compute_fedent_learning_rate,
@@ -2086,6 +2087,76 @@ class ModelAndAlgorithmTest(unittest.TestCase):
         self.assertIn("train_loss", metrics)
         self.assertIn("train_accuracy", metrics)
         self.assertIn("feddecorr_loss", metrics)
+
+    def test_train_fedaaw_client_returns_grad_norm_metric(self) -> None:
+        model = torch.nn.Linear(3, 2)
+        loader = DataLoader(
+            TensorDataset(torch.ones(4, 3), torch.zeros(4, dtype=torch.long)),
+            batch_size=2,
+        )
+
+        metrics = train_fedaaw_client(
+            model,
+            loader,
+            epochs=1,
+            learning_rate=0.05,
+            device="cpu",
+        )
+
+        self.assertIn("train_loss", metrics)
+        self.assertIn("train_accuracy", metrics)
+        self.assertIn("fedaaw_grad_norm_sq", metrics)
+        self.assertGreaterEqual(metrics["fedaaw_grad_norm_sq"], 0.0)
+
+    def test_torch_flower_client_routes_fedaaw_fit(self) -> None:
+        config = ExperimentConfig.from_run_config(
+            {
+                "algorithm": "fedaaw",
+                "local-epochs": 1,
+                "learning-rate": 0.05,
+            }
+        )
+        model = torch.nn.Linear(2, 2)
+        loader = DataLoader(
+            TensorDataset(
+                torch.tensor(
+                    [[1.0, 0.0], [0.0, 1.0], [1.0, 1.0], [0.5, 0.5]],
+                    dtype=torch.float32,
+                ),
+                torch.tensor([0, 1, 0, 1], dtype=torch.long),
+            ),
+            batch_size=2,
+        )
+        client = TorchFlowerClient(
+            model,
+            loaders=type("Loaders", (), {"train": loader, "test": loader})(),
+            config=config,
+            client_id="fedaaw-route",
+        )
+        initial_parameters = get_model_parameters(model)
+
+        with patch.object(
+            torch_client_module,
+            "train_fedaaw_client",
+            return_value={
+                "train_loss": 1.0,
+                "train_accuracy": 0.5,
+                "fedaaw_grad_norm_sq": 2.5,
+            },
+        ) as mocked_trainer:
+            updated_parameters, num_examples, metrics = client.fit(
+                initial_parameters,
+                {
+                    "algorithm": "fedaaw",
+                    "local_epochs": 1,
+                    "learning_rate": 0.05,
+                },
+            )
+
+        mocked_trainer.assert_called_once()
+        self.assertEqual(num_examples, len(loader.dataset))
+        self.assertEqual(len(updated_parameters), len(initial_parameters))
+        self.assertIn("fedaaw_grad_norm_sq", metrics)
 
     def test_torch_flower_client_routes_feddecorr_to_dedicated_trainer(self) -> None:
         config = ExperimentConfig.from_run_config(
