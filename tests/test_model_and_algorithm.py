@@ -23,6 +23,7 @@ from fl_baselines.algorithms.fedadp import FedAdpBuilder, FedAdpStrategy
 from fl_baselines.algorithms.ditto import DittoBuilder
 from fl_baselines.algorithms.feddc import FedDCBuilder, FedDCStrategy
 from fl_baselines.algorithms.feddecorr import FedDecorrBuilder
+from fl_baselines.algorithms.fedaaw import FedAAWBuilder, FedAAWStrategy
 from fl_baselines.algorithms.fedent import FedEntBuilder
 from fl_baselines.algorithms.fedvck import FedVCKBuilder, FedVCKStrategy
 from fl_baselines.algorithms.feddyn import FedDynBuilder, FedDynStrategy
@@ -447,6 +448,60 @@ class ModelAndAlgorithmTest(unittest.TestCase):
                 strategy = FedEntBuilder().build_strategy(config, model, evaluate_fn=None)
 
                 self.assertIsInstance(strategy, FedAvg)
+                self.assertEqual(strategy.min_fit_clients, 2)
+
+    def test_fedaaw_builder_creates_strategy(self) -> None:
+        config = ExperimentConfig.from_run_config(
+            {
+                "algorithm": "fedaaw",
+                "num-supernodes": 4,
+                "fedaaw-beta": 0.02,
+                "fedaaw-gamma": 1.5,
+            }
+        )
+        model = MnistCnnBuilder().build_model(config)
+
+        strategy = FedAAWBuilder().build_strategy(config, model, evaluate_fn=None)
+        fit_config = strategy.on_fit_config_fn(1)
+
+        self.assertIsInstance(strategy, FedAAWStrategy)
+        self.assertEqual(strategy.min_fit_clients, 4)
+        self.assertEqual(fit_config["algorithm"], "fedaaw")
+        self.assertEqual(fit_config["fedaaw_beta"], 0.02)
+        self.assertEqual(fit_config["fedaaw_gamma"], 1.5)
+        self.assertEqual(fit_config["fedaaw_epsilon"], 1e-8)
+
+    def test_fedaaw_builder_supports_current_models(self) -> None:
+        cases = [
+            (MnistCnnBuilder(), {}),
+            (LeNetBuilder(), {}),
+            (
+                ResNet9Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                ResNet18Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                ResNet34Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                InceptionBuilder(),
+                {"input-channels": 3, "input-height": 75, "input-width": 75},
+            ),
+        ]
+
+        for model_builder, overrides in cases:
+            with self.subTest(model=model_builder.name):
+                config = ExperimentConfig.from_run_config(
+                    {"algorithm": "fedaaw", "num-supernodes": 2, **overrides}
+                )
+                model = model_builder.build_model(config)
+                strategy = FedAAWBuilder().build_strategy(config, model, evaluate_fn=None)
+
+                self.assertIsInstance(strategy, FedAAWStrategy)
                 self.assertEqual(strategy.min_fit_clients, 2)
 
     def test_fedvck_builder_creates_strategy(self) -> None:
