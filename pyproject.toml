@@ -100,6 +100,12 @@ fedaaw-beta = 0.01
 fedaaw-gamma = 1.0
 fedaaw-epsilon = 1e-8
 
+# FedDisco
+feddisco-discrepancy-weight = 0.5
+feddisco-bias = 0.1
+feddisco-metric = "kl"
+feddisco-epsilon = 1e-8
+
 # FedVCK
 fedvck-condensed-ratio = 0.01
 fedvck-condensed-steps = 1

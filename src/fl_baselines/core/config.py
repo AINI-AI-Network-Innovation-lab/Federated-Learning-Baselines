@@ -77,6 +77,10 @@ class ExperimentConfig:
     fedaaw_beta: float = 0.01
     fedaaw_gamma: float = 1.0
     fedaaw_epsilon: float = 1e-8
+    feddisco_discrepancy_weight: float = 0.5
+    feddisco_bias: float = 0.1
+    feddisco_metric: str = "kl"
+    feddisco_epsilon: float = 1e-8
     fedvck_condensed_ratio: float = 0.01
     fedvck_condensed_steps: int = 1
     fedvck_condensed_learning_rate: float = 0.1
@@ -237,6 +241,26 @@ class ExperimentConfig:
                 run_config,
                 "fedaaw-epsilon",
                 cls.fedaaw_epsilon,
+            ),
+            feddisco_discrepancy_weight=_as_float(
+                run_config,
+                "feddisco-discrepancy-weight",
+                cls.feddisco_discrepancy_weight,
+            ),
+            feddisco_bias=_as_float(
+                run_config,
+                "feddisco-bias",
+                cls.feddisco_bias,
+            ),
+            feddisco_metric=_as_str(
+                run_config,
+                "feddisco-metric",
+                cls.feddisco_metric,
+            ),
+            feddisco_epsilon=_as_float(
+                run_config,
+                "feddisco-epsilon",
+                cls.feddisco_epsilon,
             ),
             fedvck_condensed_ratio=_as_float(
                 run_config,
@@ -424,6 +448,14 @@ class ExperimentConfig:
             raise ValueError("fedaaw-gamma must be non-negative")
         if self.fedaaw_epsilon <= 0:
             raise ValueError("fedaaw-epsilon must be positive")
+        if self.feddisco_discrepancy_weight < 0:
+            raise ValueError("feddisco-discrepancy-weight must be non-negative")
+        if self.feddisco_bias < 0:
+            raise ValueError("feddisco-bias must be non-negative")
+        if self.feddisco_metric not in {"kl", "l1", "l2", "cosine"}:
+            raise ValueError("feddisco-metric must be one of: kl, l1, l2, cosine")
+        if self.feddisco_epsilon <= 0:
+            raise ValueError("feddisco-epsilon must be positive")
         if self.fedvck_condensed_ratio <= 0:
             raise ValueError("fedvck-condensed-ratio must be positive")
         if self.fedvck_condensed_steps <= 0:

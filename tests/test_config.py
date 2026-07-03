@@ -55,6 +55,10 @@ class ExperimentConfigTest(unittest.TestCase):
                 "fedaaw-beta": 0.02,
                 "fedaaw-gamma": 1.5,
                 "fedaaw-epsilon": 1e-7,
+                "feddisco-discrepancy-weight": 0.4,
+                "feddisco-bias": 0.2,
+                "feddisco-metric": "l2",
+                "feddisco-epsilon": 1e-7,
                 "fedvck-condensed-ratio": 0.02,
                 "fedvck-condensed-steps": 3,
                 "fedvck-condensed-learning-rate": 0.4,
@@ -116,6 +120,10 @@ class ExperimentConfigTest(unittest.TestCase):
         self.assertEqual(config.fedaaw_beta, 0.02)
         self.assertEqual(config.fedaaw_gamma, 1.5)
         self.assertEqual(config.fedaaw_epsilon, 1e-7)
+        self.assertEqual(config.feddisco_discrepancy_weight, 0.4)
+        self.assertEqual(config.feddisco_bias, 0.2)
+        self.assertEqual(config.feddisco_metric, "l2")
+        self.assertEqual(config.feddisco_epsilon, 1e-7)
         self.assertEqual(config.fedvck_condensed_ratio, 0.02)
         self.assertEqual(config.fedvck_condensed_steps, 3)
         self.assertEqual(config.fedvck_condensed_learning_rate, 0.4)
@@ -216,6 +224,21 @@ class ExperimentConfigTest(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "fedaaw-epsilon must be positive"):
             ExperimentConfig.from_run_config({"fedaaw-epsilon": 0.0})
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "feddisco-discrepancy-weight must be non-negative",
+        ):
+            ExperimentConfig.from_run_config({"feddisco-discrepancy-weight": -0.1})
+
+        with self.assertRaisesRegex(ValueError, "feddisco-bias must be non-negative"):
+            ExperimentConfig.from_run_config({"feddisco-bias": -0.1})
+
+        with self.assertRaisesRegex(ValueError, "feddisco-metric must be one of"):
+            ExperimentConfig.from_run_config({"feddisco-metric": "bad"})
+
+        with self.assertRaisesRegex(ValueError, "feddisco-epsilon must be positive"):
+            ExperimentConfig.from_run_config({"feddisco-epsilon": 0.0})
 
         with self.assertRaisesRegex(ValueError, "fedvck-condensed-ratio must be positive"):
             ExperimentConfig.from_run_config({"fedvck-condensed-ratio": 0.0})
