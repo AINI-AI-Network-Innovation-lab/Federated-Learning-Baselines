@@ -24,6 +24,7 @@ from fl_baselines.algorithms.ditto import DittoBuilder
 from fl_baselines.algorithms.feddc import FedDCBuilder, FedDCStrategy
 from fl_baselines.algorithms.feddecorr import FedDecorrBuilder
 from fl_baselines.algorithms.fedaaw import FedAAWBuilder, FedAAWStrategy
+from fl_baselines.algorithms.feddisco import FedDiscoBuilder, FedDiscoStrategy
 from fl_baselines.algorithms.fedent import FedEntBuilder
 from fl_baselines.algorithms.fedvck import FedVCKBuilder, FedVCKStrategy
 from fl_baselines.algorithms.feddyn import FedDynBuilder, FedDynStrategy
@@ -509,6 +510,28 @@ class ModelAndAlgorithmTest(unittest.TestCase):
 
                 self.assertIsInstance(strategy, FedAAWStrategy)
                 self.assertEqual(strategy.min_fit_clients, 2)
+
+    def test_feddisco_builder_creates_strategy(self) -> None:
+        config = ExperimentConfig.from_run_config(
+            {
+                "algorithm": "feddisco",
+                "num-supernodes": 4,
+                "feddisco-discrepancy-weight": 0.4,
+                "feddisco-bias": 0.2,
+                "feddisco-metric": "l2",
+            }
+        )
+        model = MnistCnnBuilder().build_model(config)
+
+        strategy = FedDiscoBuilder().build_strategy(config, model, evaluate_fn=None)
+        fit_config = strategy.on_fit_config_fn(1)
+
+        self.assertIsInstance(strategy, FedDiscoStrategy)
+        self.assertEqual(strategy.min_fit_clients, 4)
+        self.assertEqual(strategy.discrepancy_weight, 0.4)
+        self.assertEqual(strategy.bias, 0.2)
+        self.assertEqual(fit_config["algorithm"], "feddisco")
+        self.assertEqual(fit_config["feddisco_metric"], "l2")
 
     def test_fedvck_builder_creates_strategy(self) -> None:
         config = ExperimentConfig.from_run_config(
@@ -1475,6 +1498,81 @@ class ModelAndAlgorithmTest(unittest.TestCase):
 
         self.assertAlmostEqual(strategy.last_aggregation_weights[0], 0.75)
         self.assertAlmostEqual(strategy.last_aggregation_weights[1], 0.25)
+
+    def test_feddisco_strategy_gives_higher_weight_to_lower_discrepancy(self) -> None:
+        config = ExperimentConfig.from_run_config(
+            {"algorithm": "feddisco", "num-supernodes": 2}
+        )
+        model = MnistCnnBuilder().build_model(config)
+        strategy = FedDiscoBuilder().build_strategy(config, model, evaluate_fn=None)
+        first_parameters = get_model_parameters(model)
+        second_parameters = [parameter + 1.0 for parameter in first_parameters]
+        results = [
+            (
+                type("Proxy", (), {"cid": "low"})(),
+                FitRes(
+                    Status(Code.OK, ""),
+                    ndarrays_to_parameters(first_parameters),
+                    10,
+                    {"feddisco_discrepancy": 0.0},
+                ),
+            ),
+            (
+                type("Proxy", (), {"cid": "high"})(),
+                FitRes(
+                    Status(Code.OK, ""),
+                    ndarrays_to_parameters(second_parameters),
+                    10,
+                    {"feddisco_discrepancy": 1.0},
+                ),
+            ),
+        ]
+
+        aggregated_parameters, _ = strategy.aggregate_fit(1, results, [])
+
+        self.assertIsNotNone(aggregated_parameters)
+        self.assertGreater(
+            strategy.last_aggregation_weights[0],
+            strategy.last_aggregation_weights[1],
+        )
+
+    def test_feddisco_strategy_falls_back_when_relu_scores_are_zero(self) -> None:
+        config = ExperimentConfig.from_run_config(
+            {
+                "algorithm": "feddisco",
+                "num-supernodes": 2,
+                "feddisco-discrepancy-weight": 10.0,
+                "feddisco-bias": 0.0,
+            }
+        )
+        model = MnistCnnBuilder().build_model(config)
+        strategy = FedDiscoBuilder().build_strategy(config, model, evaluate_fn=None)
+        first_parameters = get_model_parameters(model)
+        second_parameters = [parameter + 1.0 for parameter in first_parameters]
+        results = [
+            (
+                type("Proxy", (), {"cid": "a"})(),
+                FitRes(
+                    Status(Code.OK, ""),
+                    ndarrays_to_parameters(first_parameters),
+                    1,
+                    {"feddisco_discrepancy": 1.0},
+                ),
+            ),
+            (
+                type("Proxy", (), {"cid": "b"})(),
+                FitRes(
+                    Status(Code.OK, ""),
+                    ndarrays_to_parameters(second_parameters),
+                    3,
+                    {"feddisco_discrepancy": 1.0},
+                ),
+            ),
+        ]
+
+        strategy.aggregate_fit(1, results, [])
+
+        self.assertEqual(strategy.last_aggregation_weights, [0.25, 0.75])
 
     def test_fedvck_strategy_updates_memory_after_aggregate_fit(self) -> None:
         config = ExperimentConfig.from_run_config({"algorithm": "fedvck", "num-supernodes": 2})
