@@ -40,10 +40,16 @@ Mỗi algorithm có một file riêng trong `docs/algorithms/` để dễ mở r
 | [algorithms/fedavg.md](algorithms/fedavg.md) | FedAvg strategy builder và config liên quan. |
 | [algorithms/fedavgm.md](algorithms/fedavgm.md) | FedAvgM và server momentum. |
 | [algorithms/fedadp.md](algorithms/fedadp.md) | FedAdp adaptive weighting theo góc giữa local/global update. |
+| [algorithms/gamf.md](algorithms/gamf.md) | GAMF second-order graph-matching aggregation tren server, dung local training mac dinh va align hidden units truoc khi fuse. |
+| [algorithms/fedma.md](algorithms/fedma.md) | FedMA layer-wise matched averaging cho `mnist_cnn` va `lenet` voi Hungarian matching va frozen-prefix local retraining. |
+| [algorithms/fedcda.md](algorithms/fedcda.md) | FedCDA cross-round divergence-aware aggregation voi server-side cache local models va batch greedy selection. |
+| [algorithms/fedgen.md](algorithms/fedgen.md) | FedGEN feature-mask aggregation voi local invariant-vs-spurious suppression tren representation space. |
 | [algorithms/ditto.md](algorithms/ditto.md) | Ditto personalized local model regularized toward the global model. |
 | [algorithms/feddc.md](algorithms/feddc.md) | FedDC local drift decoupling với persisted client drift/update state và server average update state. |
 | [algorithms/feddecorr.md](algorithms/feddecorr.md) | FedDecorr them decorrelation regularization tren representation features, giu server aggregation kieu FedAvg. |
+| [algorithms/feddrl.md](algorithms/feddrl.md) | FedDRL adaptive server aggregation bang actor-critic tren state gom pre-loss, post-loss va sample ratio cua tung client. |
 | [algorithms/fedent.md](algorithms/fedent.md) | FedEnt adaptive learning rate theo entropy va mean-field, giu server aggregation kieu FedAvg. |
+| [algorithms/fedlaw.md](algorithms/fedlaw.md) | FedLAW hoc relative aggregation weights va global shrinking factor tren server-side proxy data. |
 | [algorithms/fedaaw.md](algorithms/fedaaw.md) | FedAAW adaptive aggregation weights dua tren pre-update squared gradient norm cua tung client. |
 | [algorithms/feddisco.md](algorithms/feddisco.md) | FedDisco discrepancy-aware aggregation dua tren local label distribution cua tung client. |
 | [algorithms/fedvck.md](algorithms/fedvck.md) | FedVCK client condensed knowledge payload va server replay/contrastive update tren memory da thu thap. |

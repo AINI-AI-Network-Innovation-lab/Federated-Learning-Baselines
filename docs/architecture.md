@@ -27,7 +27,8 @@ src/fl_baselines/
 4. Khởi tạo model ban đầu.
 5. Tạo server evaluation loader từ dataset.
 6. Tạo Flower strategy từ algorithm builder.
-7. Trả về `ServerAppComponents(strategy=..., config=...)`.
+7. Nếu strategy có hook `set_proxy_loader(...)`, server app sẽ inject luôn `server_loader` cho các baseline can proxy data tren server nhu FedLAW.
+8. Trả về `ServerAppComponents(strategy=..., config=...)`.
 
 Server evaluation luôn dùng server-side test split qua `build_server_loader(...)`.
 Metric trả về từ evaluation gồm `accuracy`, `precision`, `recall`, và `f1`, trong đó `precision`/`recall`/`f1` dùng macro averaging cho multi-class classification.
@@ -97,6 +98,17 @@ Unknown algorithm 'custom'. Available: ditto, fedadp, fedavg, fedavgm, feddc, fe
 | `feddyn_alpha` | Hệ số dynamic regularization cho FedDyn |
 | `feddc_alpha` | Hệ số drift penalty trong FedDC |
 | `fedexp_epsilon` | Hằng số epsilon ổn định mẫu số khi FedExP tính adaptive server extrapolation step |
+| `fedlaw_server_epochs` | Số epoch server-side optimization trên proxy loader cho FedLAW |
+| `fedlaw_server_learning_rate` | Learning rate của optimizer học `lambda` và `gamma` trong FedLAW |
+| `fedlaw_gamma_init` | Giá trị khởi tạo cho shrinking factor `gamma` của FedLAW |
+| `gamf_sigma` | Hệ số sigma cho độ tương đồng second-order của GAMF |
+| `gamf_initial_tau` | Nhiệt độ Sinkhorn khởi tạo của GAMF |
+| `gamf_descent_factor` | Hệ số giảm nhiệt độ sau mỗi vòng GAMF |
+| `gamf_min_tau` | Ngưỡng nhiệt độ tối thiểu trước khi dừng annealing của GAMF |
+| `gamf_max_iters` | Số vòng lặp graph-matching tối đa của GAMF |
+| `fedma_matching_epsilon` | Ngưỡng matching cost cho FedMA; bản tích hợp hiện dùng fixed-width matching và giữ field này để cấu hình/so sánh |
+| `fedgen_alpha` | Hệ số scale alpha cho cập nhật feature mask của FedGEN |
+| `fedgen_lambda` | Hệ số regularization penalty của FedGEN |
 | `fedproto_lambda` | Hệ số regularization kéo local prototypes về global prototypes trong FedProto |
 | `fedntd_beta` | Hệ số not-true distillation loss trong FedNTD |
 | `fedntd_temperature` | Temperature dùng cho not-true softmax trong FedNTD |

@@ -43,10 +43,16 @@ Pipeline evaluation hiện dùng hai mức rõ ràng:
 | FedSAM | 2022 | [Generalized Federated Learning via Sharpness Aware Minimization](https://arxiv.org/abs/2206.02618) |
 | FedNTD | 2022 | [Preservation of the Global Knowledge by Not-True Distillation in Federated Learning](https://arxiv.org/abs/2106.03097) |
 | FedProto | 2022 | [FedProto: Federated Prototype Learning across Heterogeneous Clients](https://arxiv.org/abs/2105.00243) |
+| FedDRL | 2022 | [FedDRL: Deep Reinforcement Learning-based Adaptive Aggregation for Non-IID Data in Federated Learning](https://arxiv.org/abs/2208.02442) |
 | FedExP | 2023 | [FedExP: Speeding up Federated Averaging via Extrapolation](https://arxiv.org/abs/2301.09604) |
 | FedSpeed | 2023 | [FedSpeed: Larger Local Interval, Less Communication Round, and Higher Generalization Accuracy](https://arxiv.org/abs/2302.10429) |
 | FedDisco | 2023 | [FedDisco: Federated Learning with Discrepancy-Aware Collaboration](https://proceedings.mlr.press/v202/ye23f.html) |
+| FedGEN | 2023 | [FedGen: Generalizable Federated Learning for Sequential Data](https://arxiv.org/abs/2211.01914) |
+| GAMF | 2022 | [Deep Neural Network Fusion via Graph Matching with Applications to Model Ensemble and Federated Learning](https://proceedings.mlr.press/v162/liu22k.html) |
+| FedMA | 2020 | [Federated Learning with Matched Averaging](https://arxiv.org/abs/2002.06440) |
+| FedCDA | 2024 | [FedCDA: Federated Learning with Cross-Round Divergence-Aware Aggregation](https://openreview.net/forum?id=nbPGqeH3lt) |
 | FedEnt | 2024 | [Adaptive Federated Learning via New Entropy Approach](https://arxiv.org/abs/2303.14966) |
+| FedLAW | 2024 | [Revisiting Weighted Aggregation in Federated Learning with Neural Networks](https://arxiv.org/abs/2302.10911) |
 | FedAAW | 2025 | [Federated Learning With Adaptive Aggregation Weights for Non-IID Data in Edge Networks](https://doi.org/10.1109/TCCN.2025.3534248) |
 | FedVCK | 2025 | [FedVCK: Non-IID Robust and Communication-Efficient Federated Learning via Valuable Condensed Knowledge for Medical Image Analysis](https://arxiv.org/abs/2412.18557) |
 

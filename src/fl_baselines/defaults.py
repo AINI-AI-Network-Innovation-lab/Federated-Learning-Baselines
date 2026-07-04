@@ -12,6 +12,12 @@ def register_default_components() -> None:
     from fl_baselines.algorithms.fedavg import FedAvgBuilder
     from fl_baselines.algorithms.fedavgm import FedAvgMBuilder
     from fl_baselines.algorithms.fedadp import FedAdpBuilder
+    from fl_baselines.algorithms.gamf import GAMFBuilder
+    from fl_baselines.algorithms.fedma import FedMABuilder
+    from fl_baselines.algorithms.fedcda import FedCDABuilder
+    from fl_baselines.algorithms.fedgen import FedGENBuilder
+    from fl_baselines.algorithms.feddrl import FedDRLBuilder
+    from fl_baselines.algorithms.fedlaw import FedLAWBuilder
     from fl_baselines.algorithms.fedaaw import FedAAWBuilder
     from fl_baselines.algorithms.ditto import DittoBuilder
     from fl_baselines.algorithms.feddc import FedDCBuilder
@@ -75,6 +81,16 @@ def register_default_components() -> None:
         ALGORITHMS.register("fedavgm", FedAvgMBuilder())
     if "fedadp" not in ALGORITHMS:
         ALGORITHMS.register("fedadp", FedAdpBuilder())
+    if "gamf" not in ALGORITHMS:
+        ALGORITHMS.register("gamf", GAMFBuilder())
+    if "fedma" not in ALGORITHMS:
+        ALGORITHMS.register("fedma", FedMABuilder())
+    if "fedcda" not in ALGORITHMS:
+        ALGORITHMS.register("fedcda", FedCDABuilder())
+    if "feddrl" not in ALGORITHMS:
+        ALGORITHMS.register("feddrl", FedDRLBuilder())
+    if "feddrrl" not in ALGORITHMS:
+        ALGORITHMS.register("feddrrl", FedDRLBuilder())
     if "ditto" not in ALGORITHMS:
         ALGORITHMS.register("ditto", DittoBuilder())
     if "feddyn" not in ALGORITHMS:
@@ -89,8 +105,12 @@ def register_default_components() -> None:
         ALGORITHMS.register("fedspeed", FedSpeedBuilder())
     if "fedsam" not in ALGORITHMS:
         ALGORITHMS.register("fedsam", FedSAMBuilder())
+    if "fedgen" not in ALGORITHMS:
+        ALGORITHMS.register("fedgen", FedGENBuilder())
     if "fedent" not in ALGORITHMS:
         ALGORITHMS.register("fedent", FedEntBuilder())
+    if "fedlaw" not in ALGORITHMS:
+        ALGORITHMS.register("fedlaw", FedLAWBuilder())
     if "fedaaw" not in ALGORITHMS:
         ALGORITHMS.register("fedaaw", FedAAWBuilder())
     if "feddisco" not in ALGORITHMS:

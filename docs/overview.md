@@ -19,10 +19,16 @@ Phiên bản hiện tại có baseline đầu tiên:
 | FedAvg MNIST CNN | FedAvg | MNIST | CNN nhỏ cho ảnh 28x28 | IID, Dirichlet |
 | FedAvgM MNIST CNN | FedAvgM | MNIST | CNN nhỏ cho ảnh 28x28 | IID, Dirichlet |
 | FedAdp MNIST CNN | FedAdp | MNIST | CNN nhỏ cho ảnh 28x28 | IID, Dirichlet |
+| GAMF MNIST CNN | GAMF | MNIST | CNN nhỏ cho ảnh 28x28 | IID, Dirichlet |
+| FedMA MNIST CNN | FedMA | MNIST | CNN nhỏ cho ảnh 28x28 | IID, Dirichlet |
+| FedGEN MNIST CNN | FedGEN | MNIST | CNN nhỏ cho ảnh 28x28 | IID, Dirichlet |
+| FedCDA MNIST CNN | FedCDA | MNIST | CNN nhỏ cho ảnh 28x28 | IID, Dirichlet |
+| FedDRL MNIST CNN | FedDRL | MNIST | CNN nhỏ cho ảnh 28x28 | IID, Dirichlet |
 | Ditto MNIST CNN | Ditto | MNIST | CNN nhỏ cho ảnh 28x28 | IID, Dirichlet |
 | FedDC MNIST CNN | FedDC | MNIST | CNN nhỏ cho ảnh 28x28 | IID, Dirichlet |
 | FedDecorr MNIST CNN | FedDecorr | MNIST | CNN nhỏ cho ảnh 28x28 | IID, Dirichlet |
 | FedEnt MNIST CNN | FedEnt | MNIST | CNN nhỏ cho ảnh 28x28 | IID, Dirichlet |
+| FedLAW MNIST CNN | FedLAW | MNIST | CNN nhỏ cho ảnh 28x28 | IID, Dirichlet |
 | FedAAW MNIST CNN | FedAAW | MNIST | CNN nhỏ cho ảnh 28x28 | IID, Dirichlet |
 | FedDisco MNIST CNN | FedDisco | MNIST | CNN nhỏ cho ảnh 28x28 | IID, Dirichlet |
 | FedVCK MNIST CNN | FedVCK | MNIST | CNN nhỏ cho ảnh 28x28 | IID, Dirichlet |

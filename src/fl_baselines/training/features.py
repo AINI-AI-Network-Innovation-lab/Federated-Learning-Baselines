@@ -74,6 +74,50 @@ def extract_features(model: nn.Module, inputs: torch.Tensor) -> torch.Tensor:
     raise ValueError(f"Feature extraction is not implemented for model type: {type(model).__name__}")
 
 
+def logits_from_features(model: nn.Module, features: torch.Tensor) -> torch.Tensor:
+    """Project extracted features back to logits for supported models."""
+
+    if isinstance(model, MnistCnn):
+        return model.fc2(features)
+
+    if isinstance(model, LeNet):
+        return model.fc3(features)
+
+    if isinstance(model, ResNet9):
+        return model.classifier(features)
+
+    if hasattr(model, "fc") and hasattr(model.fc, "weight"):
+        return model.fc(features)
+
+    if isinstance(model, nn.Linear):
+        return model(features)
+
+    raise ValueError(f"Logit projection is not implemented for model type: {type(model).__name__}")
+
+
+def classifier_weight_matrix(model: nn.Module) -> torch.Tensor:
+    """Return the final classifier weight matrix used by the current model."""
+
+    if isinstance(model, MnistCnn):
+        return model.fc2.weight
+
+    if isinstance(model, LeNet):
+        return model.fc3.weight
+
+    if isinstance(model, ResNet9):
+        return model.classifier.weight
+
+    if hasattr(model, "fc") and hasattr(model.fc, "weight"):
+        return model.fc.weight
+
+    if isinstance(model, nn.Linear):
+        return model.weight
+
+    raise ValueError(
+        f"Classifier weight extraction is not implemented for model type: {type(model).__name__}"
+    )
+
+
 def infer_feature_dim(
     model: nn.Module,
     config: ExperimentConfig,

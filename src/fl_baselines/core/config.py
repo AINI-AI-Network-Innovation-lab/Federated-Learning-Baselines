@@ -68,12 +68,41 @@ class ExperimentConfig:
     fedspeed_alpha: float = 1.0
     fedspeed_rho: float = 0.1
     fedsam_rho: float = 0.5
+    fedgen_alpha: float = 1.5
+    fedgen_lambda: float = 0.1
+    fedgen_beta: float = 0.9
+    fedgen_delta: float = 0.9
+    fedgen_warmup_epochs: int = 1
+    fedgen_l1_weight: float = 0.0001
+    gamf_sigma: float = 2.0
+    gamf_initial_tau: float = 0.05
+    gamf_descent_factor: float = 0.9
+    gamf_min_tau: float = 0.005
+    gamf_max_iters: int = 200
+    fedma_matching_epsilon: float = 0.0
+    fedcda_memory_size: int = 3
+    fedcda_num_batches: int = 3
+    fedcda_warmup_rounds: int = 50
+    fedcda_loss_weight: float = 1.0
+    feddrl_actor_learning_rate: float = 0.0001
+    feddrl_critic_learning_rate: float = 0.001
+    feddrl_discount_factor: float = 0.99
+    feddrl_target_tau: float = 0.02
+    feddrl_hidden_size: int = 256
+    feddrl_replay_buffer_size: int = 100000
+    feddrl_batch_size: int = 32
+    feddrl_updates_per_round: int = 1
+    feddrl_noise_scale: float = 0.1
+    feddrl_std_scale: float = 0.5
     fedent_beta: float = 0.99
     fedent_gamma: float = 0.99
     fedent_epsilon: float = 1e-8
     fedent_fixed_point_steps: int = 1
     fedent_max_learning_rate: float = 1.0
     fedent_enable_decay: bool = True
+    fedlaw_server_epochs: int = 1
+    fedlaw_server_learning_rate: float = 0.01
+    fedlaw_gamma_init: float = 1.0
     fedaaw_beta: float = 0.01
     fedaaw_gamma: float = 1.0
     fedaaw_epsilon: float = 1e-8
@@ -197,6 +226,136 @@ class ExperimentConfig:
                 "fedsam-rho",
                 cls.fedsam_rho,
             ),
+            fedgen_alpha=_as_float(
+                run_config,
+                "fedgen-alpha",
+                cls.fedgen_alpha,
+            ),
+            fedgen_lambda=_as_float(
+                run_config,
+                "fedgen-lambda",
+                cls.fedgen_lambda,
+            ),
+            fedgen_beta=_as_float(
+                run_config,
+                "fedgen-beta",
+                cls.fedgen_beta,
+            ),
+            fedgen_delta=_as_float(
+                run_config,
+                "fedgen-delta",
+                cls.fedgen_delta,
+            ),
+            fedgen_warmup_epochs=_as_int(
+                run_config,
+                "fedgen-warmup-epochs",
+                cls.fedgen_warmup_epochs,
+            ),
+            fedgen_l1_weight=_as_float(
+                run_config,
+                "fedgen-l1-weight",
+                cls.fedgen_l1_weight,
+            ),
+            gamf_sigma=_as_float(
+                run_config,
+                "gamf-sigma",
+                cls.gamf_sigma,
+            ),
+            gamf_initial_tau=_as_float(
+                run_config,
+                "gamf-initial-tau",
+                cls.gamf_initial_tau,
+            ),
+            gamf_descent_factor=_as_float(
+                run_config,
+                "gamf-descent-factor",
+                cls.gamf_descent_factor,
+            ),
+            gamf_min_tau=_as_float(
+                run_config,
+                "gamf-min-tau",
+                cls.gamf_min_tau,
+            ),
+            gamf_max_iters=_as_int(
+                run_config,
+                "gamf-max-iters",
+                cls.gamf_max_iters,
+            ),
+            fedma_matching_epsilon=_as_float(
+                run_config,
+                "fedma-matching-epsilon",
+                cls.fedma_matching_epsilon,
+            ),
+            fedcda_memory_size=_as_int(
+                run_config,
+                "fedcda-memory-size",
+                cls.fedcda_memory_size,
+            ),
+            fedcda_num_batches=_as_int(
+                run_config,
+                "fedcda-num-batches",
+                cls.fedcda_num_batches,
+            ),
+            fedcda_warmup_rounds=_as_int(
+                run_config,
+                "fedcda-warmup-rounds",
+                cls.fedcda_warmup_rounds,
+            ),
+            fedcda_loss_weight=_as_float(
+                run_config,
+                "fedcda-loss-weight",
+                cls.fedcda_loss_weight,
+            ),
+            feddrl_actor_learning_rate=_as_float(
+                run_config,
+                "feddrl-actor-learning-rate",
+                cls.feddrl_actor_learning_rate,
+            ),
+            feddrl_critic_learning_rate=_as_float(
+                run_config,
+                "feddrl-critic-learning-rate",
+                cls.feddrl_critic_learning_rate,
+            ),
+            feddrl_discount_factor=_as_float(
+                run_config,
+                "feddrl-discount-factor",
+                cls.feddrl_discount_factor,
+            ),
+            feddrl_target_tau=_as_float(
+                run_config,
+                "feddrl-target-tau",
+                cls.feddrl_target_tau,
+            ),
+            feddrl_hidden_size=_as_int(
+                run_config,
+                "feddrl-hidden-size",
+                cls.feddrl_hidden_size,
+            ),
+            feddrl_replay_buffer_size=_as_int(
+                run_config,
+                "feddrl-replay-buffer-size",
+                cls.feddrl_replay_buffer_size,
+            ),
+            feddrl_batch_size=_as_int(
+                run_config,
+                "feddrl-batch-size",
+                cls.feddrl_batch_size,
+            ),
+            feddrl_updates_per_round=_as_int(
+                run_config,
+                "feddrl-updates-per-round",
+                cls.feddrl_updates_per_round,
+            ),
+            feddrl_noise_scale=_as_float(
+                run_config,
+                "feddrl-noise-scale",
+                cls.feddrl_noise_scale,
+            ),
+            feddrl_std_scale=_as_float(
+                run_config,
+                "feddrl-std-scale",
+                cls.feddrl_std_scale,
+            ),
             fedent_beta=_as_float(
                 run_config,
                 "fedent-beta",
@@ -226,6 +385,21 @@ class ExperimentConfig:
                 run_config,
                 "fedent-enable-decay",
                 cls.fedent_enable_decay,
+            ),
+            fedlaw_server_epochs=_as_int(
+                run_config,
+                "fedlaw-server-epochs",
+                cls.fedlaw_server_epochs,
+            ),
+            fedlaw_server_learning_rate=_as_float(
+                run_config,
+                "fedlaw-server-learning-rate",
+                cls.fedlaw_server_learning_rate,
+            ),
+            fedlaw_gamma_init=_as_float(
+                run_config,
+                "fedlaw-gamma-init",
+                cls.fedlaw_gamma_init,
             ),
             fedaaw_beta=_as_float(
                 run_config,
@@ -432,6 +606,58 @@ class ExperimentConfig:
             raise ValueError("fedspeed-rho must be non-negative")
         if self.fedsam_rho < 0:
             raise ValueError("fedsam-rho must be non-negative")
+        if self.fedgen_alpha <= 0:
+            raise ValueError("fedgen-alpha must be positive")
+        if self.fedgen_lambda < 0:
+            raise ValueError("fedgen-lambda must be non-negative")
+        if not 0 <= self.fedgen_beta <= 1:
+            raise ValueError("fedgen-beta must be in [0, 1]")
+        if not 0 <= self.fedgen_delta <= 1:
+            raise ValueError("fedgen-delta must be in [0, 1]")
+        if self.fedgen_warmup_epochs < 0:
+            raise ValueError("fedgen-warmup-epochs must be non-negative")
+        if self.fedgen_l1_weight < 0:
+            raise ValueError("fedgen-l1-weight must be non-negative")
+        if self.gamf_sigma <= 0:
+            raise ValueError("gamf-sigma must be positive")
+        if self.gamf_initial_tau <= 0:
+            raise ValueError("gamf-initial-tau must be positive")
+        if not 0 < self.gamf_descent_factor <= 1:
+            raise ValueError("gamf-descent-factor must be in (0, 1]")
+        if self.gamf_min_tau <= 0:
+            raise ValueError("gamf-min-tau must be positive")
+        if self.gamf_max_iters <= 0:
+            raise ValueError("gamf-max-iters must be positive")
+        if self.fedma_matching_epsilon < 0:
+            raise ValueError("fedma-matching-epsilon must be non-negative")
+        if self.fedcda_memory_size <= 0:
+            raise ValueError("fedcda-memory-size must be positive")
+        if self.fedcda_num_batches <= 0:
+            raise ValueError("fedcda-num-batches must be positive")
+        if self.fedcda_warmup_rounds < 0:
+            raise ValueError("fedcda-warmup-rounds must be non-negative")
+        if self.fedcda_loss_weight <= 0:
+            raise ValueError("fedcda-loss-weight must be positive")
+        if self.feddrl_actor_learning_rate <= 0:
+            raise ValueError("feddrl-actor-learning-rate must be positive")
+        if self.feddrl_critic_learning_rate <= 0:
+            raise ValueError("feddrl-critic-learning-rate must be positive")
+        if not 0 < self.feddrl_discount_factor < 1:
+            raise ValueError("feddrl-discount-factor must be in (0, 1)")
+        if not 0 < self.feddrl_target_tau <= 1:
+            raise ValueError("feddrl-target-tau must be in (0, 1]")
+        if self.feddrl_hidden_size <= 0:
+            raise ValueError("feddrl-hidden-size must be positive")
+        if self.feddrl_replay_buffer_size <= 0:
+            raise ValueError("feddrl-replay-buffer-size must be positive")
+        if self.feddrl_batch_size <= 0:
+            raise ValueError("feddrl-batch-size must be positive")
+        if self.feddrl_updates_per_round < 0:
+            raise ValueError("feddrl-updates-per-round must be non-negative")
+        if self.feddrl_noise_scale < 0:
+            raise ValueError("feddrl-noise-scale must be non-negative")
+        if not 0 < self.feddrl_std_scale <= 1:
+            raise ValueError("feddrl-std-scale must be in (0, 1]")
         if not 0 < self.fedent_beta < 1:
             raise ValueError("fedent-beta must be in (0, 1)")
         if not 0 <= self.fedent_gamma < 1:
@@ -442,6 +668,12 @@ class ExperimentConfig:
             raise ValueError("fedent-fixed-point-steps must be positive")
         if self.fedent_max_learning_rate <= 0:
             raise ValueError("fedent-max-learning-rate must be positive")
+        if self.fedlaw_server_epochs <= 0:
+            raise ValueError("fedlaw-server-epochs must be positive")
+        if self.fedlaw_server_learning_rate <= 0:
+            raise ValueError("fedlaw-server-learning-rate must be positive")
+        if self.fedlaw_gamma_init <= 0:
+            raise ValueError("fedlaw-gamma-init must be positive")
         if self.fedaaw_beta <= 0:
             raise ValueError("fedaaw-beta must be positive")
         if self.fedaaw_gamma < 0:

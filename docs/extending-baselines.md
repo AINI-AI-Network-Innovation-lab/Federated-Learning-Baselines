@@ -159,9 +159,15 @@ Các algorithm hiện có:
 - `fedavg`
 - `fedavgm`
 - `fedadp`
+- `gamf`
+- `fedma`
+- `fedgen`
+- `fedcda`
 - `ditto`
 - `feddc`
+- `feddrl`
 - `fedent`
+- `fedlaw`
 - `fedaaw`
 - `feddisco`
 - `fedvck`
@@ -187,11 +193,16 @@ Algorithm builder nên đảm bảo:
 - nếu thuật toán cần state phía client, ví dụ SCAFFOLD cần client control variates, MOON cần local model round trước, pFedMe/Ditto cần persisted personalized model, hoặc FedPer/FedRep cần personal head theo client, hãy cô lập logic đó trong `clients/` và `training/` thay vì hard-code dataset/model
 - nếu thuật toán cần state ở cả client và payload tensor phía server, như FedDC hoặc SCAFFOLD, hãy truyền state đó bằng parameter payload thay vì nhét vào scalar metrics
 - nếu thuật toán chỉ đổi server aggregation mà vẫn giữ local training path mặc định, như FedExP, ưu tiên implement gọn trong `algorithms/` thay vì mở nhánh riêng ở `TorchFlowerClient`
+- nếu thuật toán chọn local models xuyen nhieu rounds nhưng khong doi local objective, nhu FedCDA, uu tien de strategy tu quan ly cross-round cache/selection trong `algorithms/` thay vi them persisted state vao client
 - nếu thuật toán regularize tren embedding space nhu FedProto, uu tien them helper trich feature rieng thay vi thay doi `forward()` contract cua toan bo model
 - nếu thuật toán regularize tren embedding space nhưng vẫn trả raw local model như FedDecorr, hãy giữ server strategy kiểu FedAvg và cô lập regularizer trong `training/`
 - nếu thuật toán chỉ đổi local objective nhưng không cần client state xuyên round, như FedNTD, vẫn nên tách helper riêng trong `training/` và route bằng nhánh `algorithm` trong `TorchFlowerClient`
 - nếu thuật toán chỉ đổi local optimizer nhưng vẫn aggregate như FedAvg, như FedSAM, uu tien them helper local training rieng va giu server strategy don gian
+- nếu thuật toán can aggregate them mot payload representation-level state nhu feature mask trong FedGEN, uu tien dong goi payload do cung model parameters va route ro rang trong `TorchFlowerClient`
+- nếu thuật toán can layer-wise matching va client-side freezing theo stage nhu FedMA, uu tien de strategy phat `fedma_stage` ro rang qua fit-config va de helper local training nhan danh sach prefix can freeze thay vi hard-code trong app entrypoints
+- nếu thuật toán chi doi server aggregation bang channel alignment second-order nhu GAMF, uu tien giu local training mac dinh va co lap toan bo graph matching trong `algorithms/`
 - nếu thuật toán cần server-side shared state de tinh learning rate local nhưng van aggregate nhu FedAvg, nhu FedEnt, uu tien them strategy rieng de quan ly fit-config va mean-field state thay vi sua app entrypoints
+- nếu thuật toán can hoc aggregation weights va shrinking factor tren server-side proxy data nhu FedLAW, uu tien tai su dung `build_server_loader(...)` lam proxy loader va inject vao strategy bang mot hook nho o `server_app.py` thay vi doi interface chung cua moi builder
 - nếu thuật toán chỉ doi server aggregation dua tren mot scalar metric moi client, nhu FedAAW, uu tien giu local objective mac dinh, tinh metric trong `training/`, va de strategy xu ly tracker/weighting trong `algorithms/`
 - nếu thuật toán cần client state xuyên round và client payload khác local model thô, như FedSpeed, hãy persist state theo `client_id` trong `output-dir` và trả payload mới thay vì sửa app entrypoints
 - nếu thuật toán cần client condensed payload va server replay tren memory tich luy, nhu FedVCK, uu tien tach helper local/server trong `training/`, giu payload order co dinh, va de strategy tu quan ly memory cap thay vi day logic vao app entrypoints

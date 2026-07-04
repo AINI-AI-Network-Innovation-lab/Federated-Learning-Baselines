@@ -20,6 +20,12 @@ from fl_baselines.clients.torch_client import TorchFlowerClient, get_model_param
 from fl_baselines.algorithms.fedavg import FedAvgBuilder
 from fl_baselines.algorithms.fedavgm import FedAvgMBuilder
 from fl_baselines.algorithms.fedadp import FedAdpBuilder, FedAdpStrategy
+from fl_baselines.algorithms.gamf import GAMFBuilder, GAMFStrategy
+from fl_baselines.algorithms.fedma import FedMABuilder, FedMAStrategy
+from fl_baselines.algorithms.fedcda import FedCDABuilder, FedCDAStrategy
+from fl_baselines.algorithms.fedgen import FedGENBuilder, FedGENStrategy
+from fl_baselines.algorithms.feddrl import FedDRLBuilder, FedDRLStrategy
+from fl_baselines.algorithms.fedlaw import FedLAWBuilder, FedLAWStrategy
 from fl_baselines.algorithms.ditto import DittoBuilder
 from fl_baselines.algorithms.feddc import FedDCBuilder, FedDCStrategy
 from fl_baselines.algorithms.feddecorr import FedDecorrBuilder
@@ -51,6 +57,9 @@ from fl_baselines.training.evaluate import evaluate_model
 from fl_baselines.training.features import extract_features
 from fl_baselines.training.feddecorr import feddecorr_loss, train_feddecorr_client
 from fl_baselines.training.fedaaw import train_fedaaw_client
+from fl_baselines.training.fedma import train_fedma_client
+from fl_baselines.training.fedgen import evaluate_fedgen_model, train_fedgen_client
+from fl_baselines.training.feddrl import compute_feddrl_reward, train_feddrl_client
 from fl_baselines.training.feddisco import (
     compute_label_distribution,
     compute_label_distribution_discrepancy,
@@ -275,6 +284,138 @@ class ModelAndAlgorithmTest(unittest.TestCase):
         self.assertEqual(strategy.alpha, 4.0)
         self.assertEqual(fit_config["algorithm"], "fedadp")
 
+    def test_gamf_builder_creates_strategy(self) -> None:
+        config = ExperimentConfig.from_run_config(
+            {
+                "algorithm": "gamf",
+                "num-supernodes": 4,
+                "gamf-sigma": 2.0,
+                "gamf-max-iters": 20,
+            }
+        )
+        model = MnistCnnBuilder().build_model(config)
+
+        strategy = GAMFBuilder().build_strategy(config, model, evaluate_fn=None)
+        fit_config = strategy.on_fit_config_fn(1)
+
+        self.assertIsInstance(strategy, GAMFStrategy)
+        self.assertEqual(strategy.min_fit_clients, 4)
+        self.assertEqual(strategy.sigma, 2.0)
+        self.assertEqual(strategy.max_iters, 20)
+        self.assertEqual(fit_config["algorithm"], "gamf")
+
+    def test_gamf_builder_supports_lenet_and_mnist_cnn(self) -> None:
+        cases = [
+            (MnistCnnBuilder(), {}),
+            (LeNetBuilder(), {}),
+        ]
+
+        for model_builder, overrides in cases:
+            with self.subTest(model=model_builder.name):
+                config = ExperimentConfig.from_run_config(
+                    {"algorithm": "gamf", "num-supernodes": 2, **overrides}
+                )
+                model = model_builder.build_model(config)
+
+                strategy = GAMFBuilder().build_strategy(config, model, evaluate_fn=None)
+
+                self.assertIsInstance(strategy, GAMFStrategy)
+
+    def test_gamf_builder_rejects_unsupported_models(self) -> None:
+        cases = [
+            (
+                ResNet9Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                ResNet18Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                ResNet34Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                InceptionBuilder(),
+                {"input-channels": 3, "input-height": 75, "input-width": 75},
+            ),
+        ]
+
+        for model_builder, overrides in cases:
+            with self.subTest(model=model_builder.name):
+                config = ExperimentConfig.from_run_config(
+                    {"algorithm": "gamf", "num-supernodes": 2, **overrides}
+                )
+                model = model_builder.build_model(config)
+
+                with self.assertRaisesRegex(ValueError, "GAMF currently supports"):
+                    GAMFBuilder().build_strategy(config, model, evaluate_fn=None)
+
+    def test_fedma_builder_creates_strategy(self) -> None:
+        config = ExperimentConfig.from_run_config(
+            {
+                "algorithm": "fedma",
+                "num-supernodes": 4,
+                "fedma-matching-epsilon": 0.0,
+            }
+        )
+        model = MnistCnnBuilder().build_model(config)
+
+        strategy = FedMABuilder().build_strategy(config, model, evaluate_fn=None)
+        fit_config = strategy.on_fit_config_fn(1)
+
+        self.assertIsInstance(strategy, FedMAStrategy)
+        self.assertEqual(strategy.min_fit_clients, 4)
+        self.assertEqual(fit_config["algorithm"], "fedma")
+        self.assertEqual(fit_config["fedma_stage"], 0)
+        self.assertEqual(fit_config["fedma_matching_epsilon"], 0.0)
+
+    def test_fedma_builder_supports_lenet_and_mnist_cnn(self) -> None:
+        cases = [
+            (MnistCnnBuilder(), {}),
+            (LeNetBuilder(), {}),
+        ]
+
+        for model_builder, overrides in cases:
+            with self.subTest(model=model_builder.name):
+                config = ExperimentConfig.from_run_config(
+                    {"algorithm": "fedma", "num-supernodes": 2, **overrides}
+                )
+                model = model_builder.build_model(config)
+                strategy = FedMABuilder().build_strategy(config, model, evaluate_fn=None)
+
+                self.assertIsInstance(strategy, FedMAStrategy)
+
+    def test_fedma_builder_rejects_unsupported_models(self) -> None:
+        cases = [
+            (
+                ResNet9Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                ResNet18Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                ResNet34Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                InceptionBuilder(),
+                {"input-channels": 3, "input-height": 75, "input-width": 75},
+            ),
+        ]
+
+        for model_builder, overrides in cases:
+            with self.subTest(model=model_builder.name):
+                config = ExperimentConfig.from_run_config(
+                    {"algorithm": "fedma", "num-supernodes": 2, **overrides}
+                )
+                model = model_builder.build_model(config)
+
+                with self.assertRaisesRegex(ValueError, "FedMA currently supports"):
+                    FedMABuilder().build_strategy(config, model, evaluate_fn=None)
+
     def test_fedadp_builder_supports_current_models(self) -> None:
         cases = [
             (MnistCnnBuilder(), {}),
@@ -311,6 +452,113 @@ class ModelAndAlgorithmTest(unittest.TestCase):
                 )
 
                 self.assertIsInstance(strategy, FedAdpStrategy)
+
+    def test_fedcda_builder_creates_strategy(self) -> None:
+        config = ExperimentConfig.from_run_config(
+            {
+                "algorithm": "fedcda",
+                "num-supernodes": 4,
+                "fedcda-memory-size": 4,
+                "fedcda-num-batches": 2,
+                "fedcda-warmup-rounds": 3,
+            }
+        )
+        model = MnistCnnBuilder().build_model(config)
+
+        strategy = FedCDABuilder().build_strategy(config, model, evaluate_fn=None)
+        fit_config = strategy.on_fit_config_fn(1)
+
+        self.assertIsInstance(strategy, FedCDAStrategy)
+        self.assertEqual(strategy.min_fit_clients, 4)
+        self.assertEqual(fit_config["algorithm"], "fedcda")
+        self.assertEqual(fit_config["local_epochs"], 1)
+        self.assertEqual(fit_config["learning_rate"], 0.01)
+
+    def test_fedcda_builder_supports_current_models(self) -> None:
+        cases = [
+            (MnistCnnBuilder(), {}),
+            (LeNetBuilder(), {}),
+            (
+                ResNet9Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                ResNet18Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                ResNet34Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                InceptionBuilder(),
+                {"input-channels": 3, "input-height": 75, "input-width": 75},
+            ),
+        ]
+
+        for model_builder, overrides in cases:
+            with self.subTest(model=model_builder.name):
+                config = ExperimentConfig.from_run_config(
+                    {"algorithm": "fedcda", "num-supernodes": 2, **overrides}
+                )
+                model = model_builder.build_model(config)
+                strategy = FedCDABuilder().build_strategy(config, model, evaluate_fn=None)
+
+                self.assertIsInstance(strategy, FedCDAStrategy)
+                self.assertEqual(strategy.min_fit_clients, 2)
+
+    def test_fedgen_builder_creates_strategy(self) -> None:
+        config = ExperimentConfig.from_run_config(
+            {
+                "algorithm": "fedgen",
+                "num-supernodes": 4,
+                "fedgen-alpha": 1.5,
+                "fedgen-warmup-epochs": 2,
+            }
+        )
+        model = MnistCnnBuilder().build_model(config)
+
+        strategy = FedGENBuilder().build_strategy(config, model, evaluate_fn=None)
+        fit_config = strategy.on_fit_config_fn(1)
+
+        self.assertIsInstance(strategy, FedGENStrategy)
+        self.assertEqual(strategy.min_fit_clients, 4)
+        self.assertEqual(fit_config["algorithm"], "fedgen")
+        self.assertEqual(fit_config["fedgen_alpha"], 1.5)
+        self.assertEqual(fit_config["fedgen_warmup_epochs"], 2)
+
+    def test_fedgen_builder_supports_current_models(self) -> None:
+        cases = [
+            (MnistCnnBuilder(), {}),
+            (LeNetBuilder(), {}),
+            (
+                ResNet9Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                ResNet18Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                ResNet34Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                InceptionBuilder(),
+                {"input-channels": 3, "input-height": 75, "input-width": 75},
+            ),
+        ]
+
+        for model_builder, overrides in cases:
+            with self.subTest(model=model_builder.name):
+                config = ExperimentConfig.from_run_config(
+                    {"algorithm": "fedgen", "num-supernodes": 2, **overrides}
+                )
+                model = model_builder.build_model(config)
+                strategy = FedGENBuilder().build_strategy(config, model, evaluate_fn=None)
+
+                self.assertIsInstance(strategy, FedGENStrategy)
+                self.assertEqual(strategy.min_fit_clients, 2)
 
     def test_fedexp_builder_creates_strategy(self) -> None:
         config = ExperimentConfig.from_run_config(
@@ -424,6 +672,59 @@ class ModelAndAlgorithmTest(unittest.TestCase):
         self.assertEqual(fit_config["fedent_beta"], 0.99)
         self.assertEqual(fit_config["fedent_gamma"], 0.95)
 
+    def test_feddrl_builder_creates_strategy(self) -> None:
+        config = ExperimentConfig.from_run_config(
+            {
+                "algorithm": "feddrl",
+                "num-supernodes": 4,
+                "feddrl-hidden-size": 128,
+                "feddrl-updates-per-round": 2,
+            }
+        )
+        model = MnistCnnBuilder().build_model(config)
+
+        strategy = FedDRLBuilder().build_strategy(config, model, evaluate_fn=None)
+        fit_config = strategy.on_fit_config_fn(1)
+
+        self.assertIsInstance(strategy, FedDRLStrategy)
+        self.assertEqual(strategy.min_fit_clients, 4)
+        self.assertEqual(fit_config["algorithm"], "feddrl")
+        self.assertEqual(fit_config["local_epochs"], 1)
+        self.assertEqual(fit_config["learning_rate"], 0.01)
+
+    def test_feddrl_builder_supports_current_models(self) -> None:
+        cases = [
+            (MnistCnnBuilder(), {}),
+            (LeNetBuilder(), {}),
+            (
+                ResNet9Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                ResNet18Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                ResNet34Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                InceptionBuilder(),
+                {"input-channels": 3, "input-height": 75, "input-width": 75},
+            ),
+        ]
+
+        for model_builder, overrides in cases:
+            with self.subTest(model=model_builder.name):
+                config = ExperimentConfig.from_run_config(
+                    {"algorithm": "feddrl", "num-supernodes": 2, **overrides}
+                )
+                model = model_builder.build_model(config)
+                strategy = FedDRLBuilder().build_strategy(config, model, evaluate_fn=None)
+
+                self.assertIsInstance(strategy, FedDRLStrategy)
+                self.assertEqual(strategy.min_fit_clients, 2)
+
     def test_fedent_builder_supports_current_models(self) -> None:
         cases = [
             (MnistCnnBuilder(), {}),
@@ -477,6 +778,61 @@ class ModelAndAlgorithmTest(unittest.TestCase):
         self.assertEqual(fit_config["fedaaw_beta"], 0.02)
         self.assertEqual(fit_config["fedaaw_gamma"], 1.5)
         self.assertEqual(fit_config["fedaaw_epsilon"], 1e-8)
+
+    def test_fedlaw_builder_creates_strategy(self) -> None:
+        config = ExperimentConfig.from_run_config(
+            {
+                "algorithm": "fedlaw",
+                "num-supernodes": 4,
+                "fedlaw-server-epochs": 3,
+                "fedlaw-server-learning-rate": 0.02,
+                "fedlaw-gamma-init": 0.9,
+            }
+        )
+        model = MnistCnnBuilder().build_model(config)
+
+        strategy = FedLAWBuilder().build_strategy(config, model, evaluate_fn=None)
+        fit_config = strategy.on_fit_config_fn(1)
+
+        self.assertIsInstance(strategy, FedLAWStrategy)
+        self.assertEqual(strategy.min_fit_clients, 4)
+        self.assertEqual(fit_config["algorithm"], "fedlaw")
+        self.assertEqual(fit_config["fedlaw_server_epochs"], 3)
+        self.assertEqual(fit_config["fedlaw_server_learning_rate"], 0.02)
+        self.assertEqual(fit_config["fedlaw_gamma_init"], 0.9)
+
+    def test_fedlaw_builder_supports_current_models(self) -> None:
+        cases = [
+            (MnistCnnBuilder(), {}),
+            (LeNetBuilder(), {}),
+            (
+                ResNet9Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                ResNet18Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                ResNet34Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                InceptionBuilder(),
+                {"input-channels": 3, "input-height": 75, "input-width": 75},
+            ),
+        ]
+
+        for model_builder, overrides in cases:
+            with self.subTest(model=model_builder.name):
+                config = ExperimentConfig.from_run_config(
+                    {"algorithm": "fedlaw", "num-supernodes": 2, **overrides}
+                )
+                model = model_builder.build_model(config)
+                strategy = FedLAWBuilder().build_strategy(config, model, evaluate_fn=None)
+
+                self.assertIsInstance(strategy, FedLAWStrategy)
+                self.assertEqual(strategy.on_fit_config_fn(1)["algorithm"], "fedlaw")
 
     def test_fedaaw_builder_supports_current_models(self) -> None:
         cases = [
@@ -1430,6 +1786,65 @@ class ModelAndAlgorithmTest(unittest.TestCase):
         self.assertEqual(strategy.gradient_trackers["client-1"], 4.0)
         self.assertEqual(strategy.gradient_trackers["client-2"], 9.0)
 
+    def test_fedlaw_strategy_learns_proxy_aware_weights_and_gamma(self) -> None:
+        config = ExperimentConfig.from_run_config(
+            {
+                "algorithm": "fedlaw",
+                "num-supernodes": 2,
+                "fedlaw-server-epochs": 25,
+                "fedlaw-server-learning-rate": 0.1,
+                "fedlaw-gamma-init": 1.0,
+                "input-channels": 1,
+                "input-height": 1,
+                "input-width": 2,
+                "num-classes": 2,
+            }
+        )
+        model = torch.nn.Linear(2, 2)
+        strategy = FedLAWBuilder().build_strategy(config, model, evaluate_fn=None)
+        proxy_loader = DataLoader(
+            TensorDataset(
+                torch.tensor([[1.0, 0.0], [1.0, 0.0]], dtype=torch.float32),
+                torch.tensor([0, 0], dtype=torch.long),
+            ),
+            batch_size=2,
+        )
+        strategy.set_proxy_loader(proxy_loader)
+
+        first_weight = np.array([[6.0, 0.0], [-6.0, 0.0]], dtype=np.float32)
+        second_weight = np.array([[-6.0, 0.0], [6.0, 0.0]], dtype=np.float32)
+        first_bias = np.zeros(2, dtype=np.float32)
+        second_bias = np.zeros(2, dtype=np.float32)
+        results = [
+            (
+                type("Proxy", (), {"cid": "client-a"})(),
+                FitRes(
+                    Status(Code.OK, ""),
+                    ndarrays_to_parameters([first_weight, first_bias]),
+                    1,
+                    {},
+                ),
+            ),
+            (
+                type("Proxy", (), {"cid": "client-b"})(),
+                FitRes(
+                    Status(Code.OK, ""),
+                    ndarrays_to_parameters([second_weight, second_bias]),
+                    1,
+                    {},
+                ),
+            ),
+        ]
+
+        aggregated_parameters, metrics = strategy.aggregate_fit(1, results, [])
+
+        self.assertIsNotNone(aggregated_parameters)
+        self.assertAlmostEqual(sum(strategy.last_lambda), 1.0, places=5)
+        self.assertGreater(strategy.last_lambda[0], strategy.last_lambda[1])
+        self.assertGreater(strategy.last_gamma, 0.0)
+        self.assertIn("fedlaw_gamma", metrics)
+        self.assertIn("fedlaw_proxy_loss", metrics)
+
     def test_fedaaw_strategy_gives_higher_weight_to_smaller_tracker(self) -> None:
         config = ExperimentConfig.from_run_config(
             {"algorithm": "fedaaw", "num-supernodes": 2, "fedaaw-beta": 0.5}
@@ -1610,6 +2025,294 @@ class ModelAndAlgorithmTest(unittest.TestCase):
         strategy.aggregate_fit(1, results, [])
 
         self.assertEqual(strategy.last_aggregation_weights, [0.25, 0.75])
+
+    def test_fedcda_strategy_uses_current_round_models_during_warmup(self) -> None:
+        config = ExperimentConfig.from_run_config(
+            {
+                "algorithm": "fedcda",
+                "num-supernodes": 2,
+                "fedcda-memory-size": 2,
+                "fedcda-num-batches": 1,
+                "fedcda-warmup-rounds": 2,
+            }
+        )
+        model = MnistCnnBuilder().build_model(config)
+        strategy = FedCDABuilder().build_strategy(config, model, evaluate_fn=None)
+        first_parameters = get_model_parameters(model)
+        second_parameters = [parameter + 2.0 for parameter in first_parameters]
+        results = [
+            (
+                type("Proxy", (), {"cid": "a"})(),
+                FitRes(
+                    Status(Code.OK, ""),
+                    ndarrays_to_parameters(first_parameters),
+                    10,
+                    {"train_loss": 0.4},
+                ),
+            ),
+            (
+                type("Proxy", (), {"cid": "b"})(),
+                FitRes(
+                    Status(Code.OK, ""),
+                    ndarrays_to_parameters(second_parameters),
+                    10,
+                    {"train_loss": 0.6},
+                ),
+            ),
+        ]
+
+        aggregated_parameters, metrics = strategy.aggregate_fit(1, results, [])
+
+        self.assertIsNotNone(aggregated_parameters)
+        self.assertEqual(metrics["fedcda_cache_size"], 2)
+        self.assertEqual(metrics["fedcda_selected_client_count"], 2)
+        self.assertEqual(metrics["fedcda_used_cross_round"], 0.0)
+        self.assertEqual(strategy.last_selected_rounds, {"a": 1, "b": 1})
+
+    def test_fedma_strategy_matches_permuted_hidden_units_before_averaging(self) -> None:
+        config = ExperimentConfig.from_run_config({"algorithm": "fedma", "num-supernodes": 2})
+        model = MnistCnnBuilder().build_model(config)
+        strategy = FedMABuilder().build_strategy(config, model, evaluate_fn=None)
+
+        base = get_model_parameters(model)
+        client_one = [parameter.copy() for parameter in base]
+        client_two = [parameter.copy() for parameter in base]
+        permutation = np.arange(client_two[4].shape[0])[::-1]
+        client_two[4] = client_two[4][permutation]
+        client_two[5] = client_two[5][permutation]
+        client_two[6] = client_two[6][:, permutation]
+
+        results = [
+            (
+                object(),
+                FitRes(
+                    Status(Code.OK, ""),
+                    ndarrays_to_parameters(client_one),
+                    5,
+                    {"fedma_label_counts": json.dumps([1] * 10)},
+                ),
+            ),
+            (
+                object(),
+                FitRes(
+                    Status(Code.OK, ""),
+                    ndarrays_to_parameters(client_two),
+                    5,
+                    {"fedma_label_counts": json.dumps([1] * 10)},
+                ),
+            ),
+        ]
+
+        aggregated, metrics = strategy.aggregate_fit(3, results, [])
+
+        self.assertIsNotNone(aggregated)
+        aggregated_ndarrays = parameters_to_ndarrays(aggregated)
+        np.testing.assert_allclose(aggregated_ndarrays[4], client_one[4], atol=1e-6)
+        np.testing.assert_allclose(aggregated_ndarrays[5], client_one[5], atol=1e-6)
+        np.testing.assert_allclose(aggregated_ndarrays[6], client_one[6], atol=1e-6)
+        self.assertEqual(metrics["fedma_stage"], 2)
+
+    def test_gamf_strategy_matches_permuted_hidden_units_before_averaging(self) -> None:
+        config = ExperimentConfig.from_run_config({"algorithm": "gamf", "num-supernodes": 2})
+        model = MnistCnnBuilder().build_model(config)
+        strategy = GAMFBuilder().build_strategy(config, model, evaluate_fn=None)
+
+        base = get_model_parameters(model)
+        client_one = [parameter.copy() for parameter in base]
+        client_two = [parameter.copy() for parameter in base]
+        permutation = np.arange(client_two[4].shape[0])[::-1]
+        client_two[4] = client_two[4][permutation]
+        client_two[5] = client_two[5][permutation]
+        client_two[6] = client_two[6][:, permutation]
+
+        results = [
+            (
+                object(),
+                FitRes(
+                    Status(Code.OK, ""),
+                    ndarrays_to_parameters(client_one),
+                    5,
+                    {},
+                ),
+            ),
+            (
+                object(),
+                FitRes(
+                    Status(Code.OK, ""),
+                    ndarrays_to_parameters(client_two),
+                    5,
+                    {},
+                ),
+            ),
+        ]
+
+        aggregated, metrics = strategy.aggregate_fit(1, results, [])
+
+        self.assertIsNotNone(aggregated)
+        aggregated_ndarrays = parameters_to_ndarrays(aggregated)
+        np.testing.assert_allclose(aggregated_ndarrays[4], client_one[4], atol=1e-6)
+        np.testing.assert_allclose(aggregated_ndarrays[5], client_one[5], atol=1e-6)
+        np.testing.assert_allclose(aggregated_ndarrays[6], client_one[6], atol=1e-6)
+        self.assertGreaterEqual(metrics["gamf_num_matched_layers"], 1)
+
+    def test_fedcda_strategy_selects_cross_round_models_with_lower_divergence(self) -> None:
+        config = ExperimentConfig.from_run_config(
+            {
+                "algorithm": "fedcda",
+                "num-supernodes": 2,
+                "fedcda-memory-size": 2,
+                "fedcda-num-batches": 1,
+                "fedcda-warmup-rounds": 0,
+                "fedcda-loss-weight": 1.0,
+            }
+        )
+        model = MnistCnnBuilder().build_model(config)
+        strategy = FedCDABuilder().build_strategy(config, model, evaluate_fn=None)
+        base_parameters = get_model_parameters(model)
+        far_parameters = [parameter + 10.0 for parameter in base_parameters]
+        near_parameters = [parameter + 1.0 for parameter in base_parameters]
+
+        first_round_results = [
+            (
+                type("Proxy", (), {"cid": "a"})(),
+                FitRes(
+                    Status(Code.OK, ""),
+                    ndarrays_to_parameters(base_parameters),
+                    5,
+                    {"train_loss": 0.1},
+                ),
+            ),
+            (
+                type("Proxy", (), {"cid": "b"})(),
+                FitRes(
+                    Status(Code.OK, ""),
+                    ndarrays_to_parameters(far_parameters),
+                    5,
+                    {"train_loss": 0.1},
+                ),
+            ),
+        ]
+        second_round_results = [
+            (
+                type("Proxy", (), {"cid": "a"})(),
+                FitRes(
+                    Status(Code.OK, ""),
+                    ndarrays_to_parameters(near_parameters),
+                    5,
+                    {"train_loss": 0.1},
+                ),
+            ),
+        ]
+
+        strategy.aggregate_fit(1, first_round_results, [])
+        aggregated_parameters, metrics = strategy.aggregate_fit(2, second_round_results, [])
+
+        self.assertIsNotNone(aggregated_parameters)
+        self.assertEqual(metrics["fedcda_used_cross_round"], 1.0)
+        self.assertEqual(strategy.last_selected_rounds, {"a": 2, "b": 1})
+        self.assertEqual(strategy.last_selected_client_ids, ["a", "b"])
+        aggregated_ndarrays = parameters_to_ndarrays(aggregated_parameters)
+        expected = [(left + right) / 2.0 for left, right in zip(near_parameters, far_parameters)]
+        for actual, target in zip(aggregated_ndarrays, expected):
+            np.testing.assert_allclose(actual, target)
+
+    def test_fedgen_strategy_aggregates_global_mask(self) -> None:
+        config = ExperimentConfig.from_run_config(
+            {
+                "algorithm": "fedgen",
+                "num-supernodes": 2,
+                "num-classes": 2,
+            }
+        )
+        model = torch.nn.Linear(3, 2)
+        strategy = FedGENBuilder().build_strategy(config, model, evaluate_fn=None)
+        initial_parameters = get_model_parameters(model)
+        first_mask = np.array([1.0, 2.0, 3.0], dtype=np.float32)
+        second_mask = np.array([3.0, 4.0, 5.0], dtype=np.float32)
+
+        results = [
+            (
+                type("Proxy", (), {"cid": "a"})(),
+                FitRes(
+                    Status(Code.OK, ""),
+                    ndarrays_to_parameters(initial_parameters + [first_mask]),
+                    1,
+                    {"train_loss": 0.5},
+                ),
+            ),
+            (
+                type("Proxy", (), {"cid": "b"})(),
+                FitRes(
+                    Status(Code.OK, ""),
+                    ndarrays_to_parameters(initial_parameters + [second_mask]),
+                    3,
+                    {"train_loss": 0.4},
+                ),
+            ),
+        ]
+
+        aggregated_parameters, metrics = strategy.aggregate_fit(1, results, [])
+
+        self.assertIsNotNone(aggregated_parameters)
+        self.assertIn("fedgen_mask_mean", metrics)
+        np.testing.assert_allclose(
+            strategy.global_mask,
+            np.array([2.5, 3.5, 4.5], dtype=np.float32),
+        )
+
+    def test_feddrl_strategy_uses_actor_weights_for_aggregation(self) -> None:
+        config = ExperimentConfig.from_run_config(
+            {
+                "algorithm": "feddrl",
+                "num-supernodes": 2,
+                "feddrl-updates-per-round": 0,
+            }
+        )
+        model = MnistCnnBuilder().build_model(config)
+        strategy = FedDRLBuilder().build_strategy(config, model, evaluate_fn=None)
+        first_parameters = get_model_parameters(model)
+        second_parameters = [parameter + 1.0 for parameter in first_parameters]
+        results = [
+            (
+                type("Proxy", (), {"cid": "a"})(),
+                FitRes(
+                    Status(Code.OK, ""),
+                    ndarrays_to_parameters(first_parameters),
+                    10,
+                    {
+                        "feddrl_pre_train_loss": 0.4,
+                        "feddrl_post_train_loss": 0.2,
+                    },
+                ),
+            ),
+            (
+                type("Proxy", (), {"cid": "b"})(),
+                FitRes(
+                    Status(Code.OK, ""),
+                    ndarrays_to_parameters(second_parameters),
+                    10,
+                    {
+                        "feddrl_pre_train_loss": 0.9,
+                        "feddrl_post_train_loss": 0.6,
+                    },
+                ),
+            ),
+        ]
+
+        with patch.object(
+            strategy,
+            "_select_action",
+            return_value=(np.array([1.0, -1.0], dtype=np.float32), [0.75, 0.25]),
+        ):
+            aggregated_parameters, _ = strategy.aggregate_fit(1, results, [])
+
+        self.assertIsNotNone(aggregated_parameters)
+        self.assertEqual(strategy.last_aggregation_weights, [0.75, 0.25])
+
+    def test_feddrl_reward_penalizes_average_loss_and_bias_gap(self) -> None:
+        reward = compute_feddrl_reward([1.0, 3.0, 2.0])
+
+        self.assertEqual(reward, -4.0)
 
     def test_fedvck_strategy_updates_memory_after_aggregate_fit(self) -> None:
         config = ExperimentConfig.from_run_config({"algorithm": "fedvck", "num-supernodes": 2})
@@ -2305,6 +3008,76 @@ class ModelAndAlgorithmTest(unittest.TestCase):
         self.assertIn("train_loss", metrics)
         self.assertIn("train_accuracy", metrics)
 
+    def test_train_fedgen_client_returns_local_mask_and_metrics(self) -> None:
+        model = torch.nn.Linear(3, 2)
+        loader = DataLoader(
+            TensorDataset(torch.ones(4, 3), torch.zeros(4, dtype=torch.long)),
+            batch_size=2,
+        )
+        global_mask = np.ones(3, dtype=np.float32)
+
+        metrics, local_mask = train_fedgen_client(
+            model,
+            loader,
+            epochs=1,
+            learning_rate=0.1,
+            device="cpu",
+            global_mask=global_mask,
+            fedgen_alpha=1.5,
+            fedgen_lambda=0.1,
+            fedgen_beta=0.9,
+            fedgen_delta=0.9,
+            fedgen_warmup_epochs=0,
+            fedgen_l1_weight=1e-4,
+        )
+
+        self.assertEqual(local_mask.shape, (3,))
+        self.assertTrue(np.isfinite(local_mask).all())
+        self.assertIn("train_loss", metrics)
+        self.assertIn("train_accuracy", metrics)
+        self.assertIn("fedgen_mask_mean", metrics)
+
+    def test_train_fedma_client_freezes_prefix_layers(self) -> None:
+        model = MnistCnnBuilder().build_model(ExperimentConfig())
+        loader = DataLoader(
+            TensorDataset(torch.randn(8, 1, 28, 28), torch.randint(0, 10, (8,))),
+            batch_size=4,
+        )
+        initial = {
+            name: parameter.detach().clone() for name, parameter in model.named_parameters()
+        }
+
+        metrics = train_fedma_client(
+            model,
+            loader,
+            epochs=1,
+            learning_rate=0.01,
+            device="cpu",
+            frozen_layer_prefixes=["conv1", "conv2"],
+        )
+
+        self.assertIn("fedma_label_counts", metrics)
+        self.assertTrue(torch.equal(initial["conv1.weight"], model.conv1.weight.detach()))
+        self.assertTrue(torch.equal(initial["conv2.weight"], model.conv2.weight.detach()))
+
+    def test_evaluate_fedgen_model_returns_metrics(self) -> None:
+        model = torch.nn.Linear(3, 2)
+        loader = DataLoader(
+            TensorDataset(torch.ones(4, 3), torch.zeros(4, dtype=torch.long)),
+            batch_size=2,
+        )
+
+        loss, metrics = evaluate_fedgen_model(
+            model,
+            loader,
+            device="cpu",
+            global_mask=np.ones(3, dtype=np.float32),
+        )
+
+        self.assertGreaterEqual(loss, 0.0)
+        self.assertIn("accuracy", metrics)
+        self.assertIn("precision", metrics)
+
     def test_feddecorr_loss_returns_finite_scalar(self) -> None:
         features = torch.tensor(
             [[1.0, 0.0, 2.0], [0.5, 1.0, 1.5], [2.0, 0.5, 0.0]],
@@ -2385,6 +3158,32 @@ class ModelAndAlgorithmTest(unittest.TestCase):
         self.assertIn("train_accuracy", metrics)
         self.assertIn("fedaaw_grad_norm_sq", metrics)
         self.assertGreaterEqual(metrics["fedaaw_grad_norm_sq"], 0.0)
+
+    def test_train_feddrl_client_returns_round_loss_metrics(self) -> None:
+        model = torch.nn.Linear(2, 2)
+        loader = DataLoader(
+            TensorDataset(
+                torch.tensor(
+                    [[1.0, 0.0], [0.0, 1.0], [1.0, 1.0], [0.5, 0.5]],
+                    dtype=torch.float32,
+                ),
+                torch.tensor([0, 1, 0, 1], dtype=torch.long),
+            ),
+            batch_size=2,
+        )
+
+        metrics = train_feddrl_client(
+            model,
+            loader,
+            epochs=1,
+            learning_rate=0.05,
+            device="cpu",
+        )
+
+        self.assertIn("feddrl_pre_train_loss", metrics)
+        self.assertIn("feddrl_post_train_loss", metrics)
+        self.assertGreaterEqual(metrics["feddrl_pre_train_loss"], 0.0)
+        self.assertGreaterEqual(metrics["feddrl_post_train_loss"], 0.0)
 
     def test_feddisco_discrepancy_is_lower_for_uniform_labels(self) -> None:
         uniform_loader = DataLoader(
@@ -2494,6 +3293,179 @@ class ModelAndAlgorithmTest(unittest.TestCase):
         self.assertEqual(num_examples, len(loader.dataset))
         self.assertEqual(len(updated_parameters), len(initial_parameters))
         self.assertIn("fedaaw_grad_norm_sq", metrics)
+
+    def test_torch_flower_client_routes_feddrl_fit(self) -> None:
+        config = ExperimentConfig.from_run_config(
+            {
+                "algorithm": "feddrl",
+                "local-epochs": 1,
+                "learning-rate": 0.05,
+            }
+        )
+        model = torch.nn.Linear(2, 2)
+        loader = DataLoader(
+            TensorDataset(
+                torch.tensor(
+                    [[1.0, 0.0], [0.0, 1.0], [1.0, 1.0], [0.5, 0.5]],
+                    dtype=torch.float32,
+                ),
+                torch.tensor([0, 1, 0, 1], dtype=torch.long),
+            ),
+            batch_size=2,
+        )
+        client = TorchFlowerClient(
+            model,
+            loaders=type("Loaders", (), {"train": loader, "test": loader})(),
+            config=config,
+            client_id="feddrl-route",
+        )
+        initial_parameters = get_model_parameters(model)
+
+        with patch.object(
+            torch_client_module,
+            "train_feddrl_client",
+            return_value={
+                "train_loss": 0.7,
+                "train_accuracy": 0.5,
+                "feddrl_pre_train_loss": 1.2,
+                "feddrl_post_train_loss": 0.8,
+            },
+        ) as mocked_trainer:
+            updated_parameters, num_examples, metrics = client.fit(
+                initial_parameters,
+                {
+                    "algorithm": "feddrl",
+                    "local_epochs": 1,
+                    "learning_rate": 0.05,
+                },
+            )
+
+        mocked_trainer.assert_called_once()
+        self.assertEqual(num_examples, len(loader.dataset))
+        self.assertEqual(len(updated_parameters), len(initial_parameters))
+        self.assertIn("feddrl_pre_train_loss", metrics)
+        self.assertIn("feddrl_post_train_loss", metrics)
+
+    def test_torch_flower_client_routes_fedgen_fit(self) -> None:
+        config = ExperimentConfig.from_run_config(
+            {
+                "algorithm": "fedgen",
+                "fedgen-alpha": 1.5,
+                "fedgen-lambda": 0.2,
+                "fedgen-beta": 0.9,
+                "fedgen-delta": 0.8,
+                "fedgen-warmup-epochs": 1,
+                "fedgen-l1-weight": 1e-4,
+            }
+        )
+        model = torch.nn.Linear(3, 2)
+        loader = DataLoader(
+            TensorDataset(torch.ones(4, 3), torch.zeros(4, dtype=torch.long)),
+            batch_size=2,
+        )
+        client = TorchFlowerClient(
+            model,
+            loaders=type("Loaders", (), {"train": loader, "test": loader})(),
+            config=config,
+            client_id="fedgen-route",
+        )
+        initial_parameters = get_model_parameters(model)
+        global_mask = np.ones(3, dtype=np.float32)
+
+        with patch.object(
+            torch_client_module,
+            "train_fedgen_client",
+            return_value=(
+                {
+                    "train_loss": 0.5,
+                    "train_accuracy": 0.75,
+                    "fedgen_mask_mean": 0.8,
+                },
+                np.full(3, 2.0, dtype=np.float32),
+            ),
+        ):
+            updated_payload, num_examples, metrics = client.fit(
+                initial_parameters + [global_mask],
+                {
+                    "algorithm": "fedgen",
+                    "local_epochs": 1,
+                    "learning_rate": 0.1,
+                    "fedgen_alpha": 1.5,
+                    "fedgen_lambda": 0.2,
+                    "fedgen_beta": 0.9,
+                    "fedgen_delta": 0.8,
+                    "fedgen_warmup_epochs": 1,
+                    "fedgen_l1_weight": 1e-4,
+                },
+            )
+
+        self.assertEqual(num_examples, 4)
+        self.assertEqual(len(updated_payload), len(initial_parameters) + 1)
+        self.assertTrue(np.array_equal(updated_payload[-1], np.full(3, 2.0, dtype=np.float32)))
+        self.assertIn("fedgen_mask_mean", metrics)
+
+    def test_torch_flower_client_routes_fedma_fit(self) -> None:
+        config = ExperimentConfig.from_run_config({"algorithm": "fedma"})
+        model = MnistCnnBuilder().build_model(config)
+        dataset = TensorDataset(torch.randn(8, 1, 28, 28), torch.randint(0, 10, (8,)))
+        loader = DataLoader(dataset, batch_size=4)
+        client = TorchFlowerClient(
+            model,
+            loaders=type("Loaders", (), {"train": loader, "test": loader})(),
+            config=config,
+            client_id="fedma-route",
+        )
+        initial_parameters = get_model_parameters(model)
+
+        with patch.object(
+            torch_client_module,
+            "train_fedma_client",
+            return_value={"fedma_label_counts": json.dumps([1] * 10)},
+        ) as mocked_trainer:
+            updated_parameters, num_examples, metrics = client.fit(
+                initial_parameters,
+                {
+                    "algorithm": "fedma",
+                    "local_epochs": 1,
+                    "learning_rate": 0.01,
+                    "fedma_stage": 1,
+                },
+            )
+
+        self.assertEqual(num_examples, len(dataset))
+        self.assertEqual(len(updated_parameters), len(initial_parameters))
+        self.assertIn("fedma_label_counts", metrics)
+        self.assertEqual(mocked_trainer.call_args.kwargs["frozen_layer_prefixes"], ["conv1"])
+
+    def test_torch_flower_client_evaluates_fedgen_with_mask(self) -> None:
+        config = ExperimentConfig.from_run_config({"algorithm": "fedgen"})
+        model = torch.nn.Linear(3, 2)
+        loader = DataLoader(
+            TensorDataset(torch.ones(4, 3), torch.zeros(4, dtype=torch.long)),
+            batch_size=2,
+        )
+        client = TorchFlowerClient(
+            model,
+            loaders=type("Loaders", (), {"train": loader, "test": loader})(),
+            config=config,
+            client_id="fedgen-eval",
+        )
+        initial_parameters = get_model_parameters(model)
+        global_mask = np.ones(3, dtype=np.float32)
+
+        with patch.object(
+            torch_client_module,
+            "evaluate_fedgen_model",
+            return_value=(0.4, {"accuracy": 0.8, "precision": 0.8, "recall": 0.8, "f1": 0.8}),
+        ):
+            loss, num_examples, metrics = client.evaluate(
+                initial_parameters + [global_mask],
+                {"algorithm": "fedgen"},
+            )
+
+        self.assertEqual(loss, 0.4)
+        self.assertEqual(num_examples, 4)
+        self.assertEqual(metrics["accuracy"], 0.8)
 
     def test_torch_flower_client_routes_feddisco_fit(self) -> None:
         config = ExperimentConfig.from_run_config(

@@ -5,18 +5,20 @@ from __future__ import annotations
 from typing import cast
 
 from flwr.app import Context
+from flwr.common import parameters_to_ndarrays
 from flwr.server import ServerAppComponents, ServerConfig
 from flwr.serverapp import ServerApp
 
 from fl_baselines import register_default_components
 from fl_baselines.algorithms.base import AlgorithmBuilder
-from fl_baselines.clients.torch_client import set_model_parameters
+from fl_baselines.clients.torch_client import get_model_parameters, set_model_parameters
 from fl_baselines.core.config import ExperimentConfig
 from fl_baselines.core.registry import ALGORITHMS, DATASETS, MODELS
 from fl_baselines.datasets.base import DatasetBuilder
 from fl_baselines.logging.artifacts import save_config
 from fl_baselines.models.base import ModelBuilder
 from fl_baselines.training.evaluate import evaluate_model
+from fl_baselines.training.fedgen import evaluate_fedgen_model
 
 
 def server_fn(context: Context) -> ServerAppComponents:
@@ -30,12 +32,24 @@ def server_fn(context: Context) -> ServerAppComponents:
 
     initial_model = model_builder.build_model(config)
     server_loader = dataset.build_server_loader(config)
+    model_parameter_count = len(get_model_parameters(initial_model))
 
     def evaluate_fn(server_round, parameters, eval_config):
-        set_model_parameters(initial_model, parameters)
+        ndarrays = parameters_to_ndarrays(parameters)
+        if config.algorithm == "fedgen" and len(ndarrays) > model_parameter_count:
+            set_model_parameters(initial_model, ndarrays[:model_parameter_count])
+            return evaluate_fedgen_model(
+                initial_model,
+                server_loader,
+                config.device,
+                global_mask=ndarrays[model_parameter_count],
+            )
+        set_model_parameters(initial_model, ndarrays)
         return evaluate_model(initial_model, server_loader, config.device)
 
     strategy = algorithm.build_strategy(config, initial_model, evaluate_fn=evaluate_fn)
+    if hasattr(strategy, "set_proxy_loader"):
+        strategy.set_proxy_loader(server_loader)
     server_config = ServerConfig(num_rounds=config.num_server_rounds)
     return ServerAppComponents(strategy=strategy, config=server_config)
 

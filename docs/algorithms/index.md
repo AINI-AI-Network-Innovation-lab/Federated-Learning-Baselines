@@ -7,10 +7,16 @@ Mỗi algorithm có một file riêng để dễ mở rộng khi thêm baseline 
 | FedAvg | [fedavg.md](fedavg.md) |
 | FedAvgM | [fedavgm.md](fedavgm.md) |
 | FedAdp | [fedadp.md](fedadp.md) |
+| GAMF | [gamf.md](gamf.md) |
+| FedMA | [fedma.md](fedma.md) |
+| FedCDA | [fedcda.md](fedcda.md) |
+| FedGEN | [fedgen.md](fedgen.md) |
 | Ditto | [ditto.md](ditto.md) |
 | FedDC | [feddc.md](feddc.md) |
 | FedDecorr | [feddecorr.md](feddecorr.md) |
+| FedDRL | [feddrl.md](feddrl.md) |
 | FedEnt | [fedent.md](fedent.md) |
+| FedLAW | [fedlaw.md](fedlaw.md) |
 | FedAAW | [fedaaw.md](fedaaw.md) |
 | FedDisco | [feddisco.md](feddisco.md) |
 | FedVCK | [fedvck.md](fedvck.md) |

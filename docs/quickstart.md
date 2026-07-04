@@ -82,6 +82,47 @@ fedspeed-rho = 0.1
 # FedSAM
 fedsam-rho = 0.5
 
+# FedGEN
+fedgen-alpha = 1.5
+fedgen-lambda = 0.1
+fedgen-beta = 0.9
+fedgen-delta = 0.9
+fedgen-warmup-epochs = 1
+fedgen-l1-weight = 0.0001
+
+# GAMF
+gamf-sigma = 2.0
+gamf-initial-tau = 0.05
+gamf-descent-factor = 0.9
+gamf-min-tau = 0.005
+gamf-max-iters = 200
+
+# FedMA
+fedma-matching-epsilon = 0.0
+
+# FedCDA
+fedcda-memory-size = 3
+fedcda-num-batches = 3
+fedcda-warmup-rounds = 50
+fedcda-loss-weight = 1.0
+
+# FedDRL
+feddrl-actor-learning-rate = 0.0001
+feddrl-critic-learning-rate = 0.001
+feddrl-discount-factor = 0.99
+feddrl-target-tau = 0.02
+feddrl-hidden-size = 256
+feddrl-replay-buffer-size = 100000
+feddrl-batch-size = 32
+feddrl-updates-per-round = 1
+feddrl-noise-scale = 0.1
+feddrl-std-scale = 0.5
+
+# FedLAW
+fedlaw-server-epochs = 1
+fedlaw-server-learning-rate = 0.01
+fedlaw-gamma-init = 1.0
+
 # FedProto
 fedproto-lambda = 1.0
 
@@ -177,6 +218,42 @@ flwr run . --run-config 'algorithm="feddyn" feddyn-alpha=0.1' --stream
 
 ```bash
 flwr run . --run-config 'algorithm="feddc" feddc-alpha=0.01' --stream
+```
+
+## Chạy FedDRL
+
+```bash
+flwr run . --run-config 'algorithm="feddrl" feddrl-updates-per-round=1 feddrl-noise-scale=0.1' --stream
+```
+
+## Chạy FedLAW
+
+```bash
+flwr run . --run-config 'algorithm="fedlaw" fedlaw-server-epochs=3 fedlaw-server-learning-rate=0.01 fedlaw-gamma-init=1.0' --stream
+```
+
+## Chạy FedGEN
+
+```bash
+flwr run . --run-config 'algorithm="fedgen" fedgen-alpha=1.5 fedgen-lambda=0.1 fedgen-warmup-epochs=1' --stream
+```
+
+## Chạy GAMF
+
+```bash
+flwr run . --run-config 'algorithm="gamf" model="mnist_cnn" gamf-sigma=2.0 gamf-max-iters=200' --stream
+```
+
+## Chạy FedMA
+
+```bash
+flwr run . --run-config 'algorithm="fedma" model="mnist_cnn" num-server-rounds=4 fedma-matching-epsilon=0.0' --stream
+```
+
+## Chạy FedCDA
+
+```bash
+flwr run . --run-config 'algorithm="fedcda" fedcda-memory-size=3 fedcda-num-batches=3 fedcda-warmup-rounds=50' --stream
 ```
 
 ## Chạy FedDecorr

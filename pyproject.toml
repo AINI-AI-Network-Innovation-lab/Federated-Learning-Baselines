@@ -87,6 +87,42 @@ fedspeed-rho = 0.1
 # FedSAM
 fedsam-rho = 0.5
 
+# FedGEN
+fedgen-alpha = 1.5
+fedgen-lambda = 0.1
+fedgen-beta = 0.9
+fedgen-delta = 0.9
+fedgen-warmup-epochs = 1
+fedgen-l1-weight = 0.0001
+
+# GAMF
+gamf-sigma = 2.0
+gamf-initial-tau = 0.05
+gamf-descent-factor = 0.9
+gamf-min-tau = 0.005
+gamf-max-iters = 200
+
+# FedMA
+fedma-matching-epsilon = 0.0
+
+# FedCDA
+fedcda-memory-size = 3
+fedcda-num-batches = 3
+fedcda-warmup-rounds = 50
+fedcda-loss-weight = 1.0
+
+# FedDRL
+feddrl-actor-learning-rate = 0.0001
+feddrl-critic-learning-rate = 0.001
+feddrl-discount-factor = 0.99
+feddrl-target-tau = 0.02
+feddrl-hidden-size = 256
+feddrl-replay-buffer-size = 100000
+feddrl-batch-size = 32
+feddrl-updates-per-round = 1
+feddrl-noise-scale = 0.1
+feddrl-std-scale = 0.5
+
 # FedEnt
 fedent-beta = 0.99
 fedent-gamma = 0.99
@@ -94,6 +130,11 @@ fedent-epsilon = 1e-8
 fedent-fixed-point-steps = 1
 fedent-max-learning-rate = 1.0
 fedent-enable-decay = true
+
+# FedLAW
+fedlaw-server-epochs = 1
+fedlaw-server-learning-rate = 0.01
+fedlaw-gamma-init = 1.0
 
 # FedAAW
 fedaaw-beta = 0.01

@@ -14,8 +14,8 @@ from torch import nn
 
 from fl_baselines.algorithms.fedper import (
     get_indexed_model_parameters,
-    set_indexed_model_parameters,
     split_fedper_parameter_indices,
+    set_indexed_model_parameters,
 )
 from fl_baselines.core.config import ExperimentConfig
 from fl_baselines.core.types import ClientDataLoaders
@@ -24,6 +24,9 @@ from fl_baselines.training.evaluate import evaluate_model
 from fl_baselines.training.fedaaw import train_fedaaw_client
 from fl_baselines.training.feddc import train_feddc_client
 from fl_baselines.training.feddecorr import train_feddecorr_client
+from fl_baselines.training.fedma import train_fedma_client
+from fl_baselines.training.fedgen import evaluate_fedgen_model, train_fedgen_client
+from fl_baselines.training.feddrl import train_feddrl_client
 from fl_baselines.training.feddisco import train_feddisco_client
 from fl_baselines.training.fedent import train_fedent_client
 from fl_baselines.training.fedvck import train_fedvck_client
@@ -93,8 +96,14 @@ class TorchFlowerClient(NumPyClient):
             return self._fit_feddc(parameters, config)
         if algorithm == "feddecorr":
             return self._fit_feddecorr(parameters, config)
+        if algorithm == "fedma":
+            return self._fit_fedma(parameters, config)
         if algorithm == "fedaaw":
             return self._fit_fedaaw(parameters, config)
+        if algorithm == "fedgen":
+            return self._fit_fedgen(parameters, config)
+        if algorithm in {"feddrl", "feddrrl"}:
+            return self._fit_feddrl(parameters, config)
         if algorithm == "feddisco":
             return self._fit_feddisco(parameters, config)
         if algorithm == "fedent":
@@ -125,6 +134,27 @@ class TorchFlowerClient(NumPyClient):
             learning_rate=learning_rate,
             device=self.config.device,
             proximal_mu=proximal_mu,
+        )
+        return get_model_parameters(self.model), len(self.loaders.train.dataset), metrics
+
+    def _fit_fedma(
+        self,
+        parameters: list[np.ndarray],
+        config: dict[str, bool | bytes | float | int | str],
+    ) -> tuple[list[np.ndarray], int, dict[str, bool | bytes | float | int | str]]:
+        set_model_parameters(self.model, parameters)
+        local_epochs = int(config.get("local_epochs", self.config.local_epochs))
+        learning_rate = float(config.get("learning_rate", self.config.learning_rate))
+        stage = int(config.get("fedma_stage", 0))
+        from fl_baselines.algorithms.fedma import fedma_frozen_prefixes
+
+        metrics = train_fedma_client(
+            self.model,
+            self.loaders.train,
+            epochs=local_epochs,
+            learning_rate=learning_rate,
+            device=self.config.device,
+            frozen_layer_prefixes=fedma_frozen_prefixes(self.model, stage),
         )
         return get_model_parameters(self.model), len(self.loaders.train.dataset), metrics
 
@@ -348,6 +378,69 @@ class TorchFlowerClient(NumPyClient):
         local_epochs = int(config.get("local_epochs", self.config.local_epochs))
         learning_rate = float(config.get("learning_rate", self.config.learning_rate))
         metrics = train_fedaaw_client(
+            self.model,
+            self.loaders.train,
+            epochs=local_epochs,
+            learning_rate=learning_rate,
+            device=self.config.device,
+        )
+        return get_model_parameters(self.model), len(self.loaders.train.dataset), metrics
+
+    def _fit_fedgen(
+        self,
+        parameters: list[np.ndarray],
+        config: dict[str, bool | bytes | float | int | str],
+    ) -> tuple[list[np.ndarray], int, dict[str, bool | bytes | float | int | str]]:
+        model_parameter_count = len(get_model_parameters(self.model))
+        if len(parameters) <= model_parameter_count:
+            raise ValueError("FedGEN fit requires model parameters and global mask")
+
+        model_parameters = parameters[:model_parameter_count]
+        global_mask = parameters[model_parameter_count]
+        set_model_parameters(self.model, model_parameters)
+
+        local_epochs = int(config.get("local_epochs", self.config.local_epochs))
+        learning_rate = float(config.get("learning_rate", self.config.learning_rate))
+        fedgen_alpha = float(config.get("fedgen_alpha", self.config.fedgen_alpha))
+        fedgen_lambda = float(config.get("fedgen_lambda", self.config.fedgen_lambda))
+        fedgen_beta = float(config.get("fedgen_beta", self.config.fedgen_beta))
+        fedgen_delta = float(config.get("fedgen_delta", self.config.fedgen_delta))
+        fedgen_warmup_epochs = int(
+            config.get("fedgen_warmup_epochs", self.config.fedgen_warmup_epochs)
+        )
+        fedgen_l1_weight = float(
+            config.get("fedgen_l1_weight", self.config.fedgen_l1_weight)
+        )
+        metrics, local_mask = train_fedgen_client(
+            self.model,
+            self.loaders.train,
+            epochs=local_epochs,
+            learning_rate=learning_rate,
+            device=self.config.device,
+            global_mask=global_mask,
+            fedgen_alpha=fedgen_alpha,
+            fedgen_lambda=fedgen_lambda,
+            fedgen_beta=fedgen_beta,
+            fedgen_delta=fedgen_delta,
+            fedgen_warmup_epochs=fedgen_warmup_epochs,
+            fedgen_l1_weight=fedgen_l1_weight,
+        )
+        return (
+            get_model_parameters(self.model) + [local_mask],
+            len(self.loaders.train.dataset),
+            metrics,
+        )
+
+    def _fit_feddrl(
+        self,
+        parameters: list[np.ndarray],
+        config: dict[str, bool | bytes | float | int | str],
+    ) -> tuple[list[np.ndarray], int, dict[str, bool | bytes | float | int | str]]:
+        set_model_parameters(self.model, parameters)
+
+        local_epochs = int(config.get("local_epochs", self.config.local_epochs))
+        learning_rate = float(config.get("learning_rate", self.config.learning_rate))
+        metrics = train_feddrl_client(
             self.model,
             self.loaders.train,
             epochs=local_epochs,
@@ -1068,6 +1161,18 @@ class TorchFlowerClient(NumPyClient):
             shared_indices, personal_indices = self._fedrep_indices(config)
             set_indexed_model_parameters(self.model, shared_indices, parameters)
             self._load_fedrep_personal_parameters(personal_indices)
+        elif algorithm == "fedgen":
+            model_parameter_count = len(get_model_parameters(self.model))
+            model_parameters = parameters[:model_parameter_count]
+            global_mask = parameters[model_parameter_count]
+            set_model_parameters(self.model, model_parameters)
+            loss, metrics = evaluate_fedgen_model(
+                self.model,
+                self.loaders.test,
+                device=self.config.device,
+                global_mask=global_mask,
+            )
+            return loss, len(self.loaders.test.dataset), metrics
         else:
             set_model_parameters(self.model, parameters)
         loss, metrics = evaluate_model(

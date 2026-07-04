@@ -47,11 +47,40 @@ class ExperimentConfigTest(unittest.TestCase):
                 "fedspeed-alpha": 0.8,
                 "fedspeed-rho": 0.15,
                 "fedsam-rho": 0.5,
+                "fedgen-alpha": 1.5,
+                "fedgen-lambda": 0.2,
+                "fedgen-beta": 0.9,
+                "fedgen-delta": 0.8,
+                "fedgen-warmup-epochs": 2,
+                "fedgen-l1-weight": 1e-4,
+                "gamf-sigma": 2.0,
+                "gamf-initial-tau": 0.05,
+                "gamf-descent-factor": 0.9,
+                "gamf-min-tau": 0.005,
+                "gamf-max-iters": 200,
+                "fedma-matching-epsilon": 0.0,
+                "fedcda-memory-size": 4,
+                "fedcda-num-batches": 2,
+                "fedcda-warmup-rounds": 3,
+                "fedcda-loss-weight": 1.5,
+                "feddrl-actor-learning-rate": 2e-4,
+                "feddrl-critic-learning-rate": 2e-3,
+                "feddrl-discount-factor": 0.95,
+                "feddrl-target-tau": 0.05,
+                "feddrl-hidden-size": 128,
+                "feddrl-replay-buffer-size": 512,
+                "feddrl-batch-size": 16,
+                "feddrl-updates-per-round": 3,
+                "feddrl-noise-scale": 0.15,
+                "feddrl-std-scale": 0.4,
                 "fedent-beta": 0.99,
                 "fedent-gamma": 0.95,
                 "fedent-epsilon": 1e-7,
                 "fedent-fixed-point-steps": 3,
                 "fedent-max-learning-rate": 0.8,
+                "fedlaw-server-epochs": 4,
+                "fedlaw-server-learning-rate": 0.03,
+                "fedlaw-gamma-init": 0.9,
                 "fedaaw-beta": 0.02,
                 "fedaaw-gamma": 1.5,
                 "fedaaw-epsilon": 1e-7,
@@ -112,11 +141,40 @@ class ExperimentConfigTest(unittest.TestCase):
         self.assertEqual(config.fedspeed_alpha, 0.8)
         self.assertEqual(config.fedspeed_rho, 0.15)
         self.assertEqual(config.fedsam_rho, 0.5)
+        self.assertEqual(config.fedgen_alpha, 1.5)
+        self.assertEqual(config.fedgen_lambda, 0.2)
+        self.assertEqual(config.fedgen_beta, 0.9)
+        self.assertEqual(config.fedgen_delta, 0.8)
+        self.assertEqual(config.fedgen_warmup_epochs, 2)
+        self.assertEqual(config.fedgen_l1_weight, 1e-4)
+        self.assertEqual(config.gamf_sigma, 2.0)
+        self.assertEqual(config.gamf_initial_tau, 0.05)
+        self.assertEqual(config.gamf_descent_factor, 0.9)
+        self.assertEqual(config.gamf_min_tau, 0.005)
+        self.assertEqual(config.gamf_max_iters, 200)
+        self.assertEqual(config.fedma_matching_epsilon, 0.0)
+        self.assertEqual(config.fedcda_memory_size, 4)
+        self.assertEqual(config.fedcda_num_batches, 2)
+        self.assertEqual(config.fedcda_warmup_rounds, 3)
+        self.assertEqual(config.fedcda_loss_weight, 1.5)
+        self.assertEqual(config.feddrl_actor_learning_rate, 2e-4)
+        self.assertEqual(config.feddrl_critic_learning_rate, 2e-3)
+        self.assertEqual(config.feddrl_discount_factor, 0.95)
+        self.assertEqual(config.feddrl_target_tau, 0.05)
+        self.assertEqual(config.feddrl_hidden_size, 128)
+        self.assertEqual(config.feddrl_replay_buffer_size, 512)
+        self.assertEqual(config.feddrl_batch_size, 16)
+        self.assertEqual(config.feddrl_updates_per_round, 3)
+        self.assertEqual(config.feddrl_noise_scale, 0.15)
+        self.assertEqual(config.feddrl_std_scale, 0.4)
         self.assertEqual(config.fedent_beta, 0.99)
         self.assertEqual(config.fedent_gamma, 0.95)
         self.assertEqual(config.fedent_epsilon, 1e-7)
         self.assertEqual(config.fedent_fixed_point_steps, 3)
         self.assertEqual(config.fedent_max_learning_rate, 0.8)
+        self.assertEqual(config.fedlaw_server_epochs, 4)
+        self.assertEqual(config.fedlaw_server_learning_rate, 0.03)
+        self.assertEqual(config.fedlaw_gamma_init, 0.9)
         self.assertEqual(config.fedaaw_beta, 0.02)
         self.assertEqual(config.fedaaw_gamma, 1.5)
         self.assertEqual(config.fedaaw_epsilon, 1e-7)
@@ -206,6 +264,97 @@ class ExperimentConfigTest(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "fedsam-rho must be non-negative"):
             ExperimentConfig.from_run_config({"fedsam-rho": -0.1})
+
+        with self.assertRaisesRegex(ValueError, "fedlaw-server-epochs must be positive"):
+            ExperimentConfig.from_run_config({"fedlaw-server-epochs": 0})
+
+        with self.assertRaisesRegex(
+            ValueError, "fedlaw-server-learning-rate must be positive"
+        ):
+            ExperimentConfig.from_run_config({"fedlaw-server-learning-rate": 0.0})
+
+        with self.assertRaisesRegex(ValueError, "fedlaw-gamma-init must be positive"):
+            ExperimentConfig.from_run_config({"fedlaw-gamma-init": 0.0})
+
+        with self.assertRaisesRegex(ValueError, "fedgen-alpha must be positive"):
+            ExperimentConfig.from_run_config({"fedgen-alpha": 0.0})
+
+        with self.assertRaisesRegex(ValueError, "fedgen-lambda must be non-negative"):
+            ExperimentConfig.from_run_config({"fedgen-lambda": -0.1})
+
+        with self.assertRaisesRegex(ValueError, "fedgen-beta must be in"):
+            ExperimentConfig.from_run_config({"fedgen-beta": 1.1})
+
+        with self.assertRaisesRegex(ValueError, "fedgen-delta must be in"):
+            ExperimentConfig.from_run_config({"fedgen-delta": -0.1})
+
+        with self.assertRaisesRegex(ValueError, "fedgen-warmup-epochs must be non-negative"):
+            ExperimentConfig.from_run_config({"fedgen-warmup-epochs": -1})
+
+        with self.assertRaisesRegex(ValueError, "fedgen-l1-weight must be non-negative"):
+            ExperimentConfig.from_run_config({"fedgen-l1-weight": -1e-4})
+
+        with self.assertRaisesRegex(ValueError, "gamf-sigma must be positive"):
+            ExperimentConfig.from_run_config({"gamf-sigma": 0.0})
+
+        with self.assertRaisesRegex(ValueError, "gamf-initial-tau must be positive"):
+            ExperimentConfig.from_run_config({"gamf-initial-tau": 0.0})
+
+        with self.assertRaisesRegex(ValueError, "gamf-descent-factor must be in"):
+            ExperimentConfig.from_run_config({"gamf-descent-factor": 1.1})
+
+        with self.assertRaisesRegex(ValueError, "gamf-min-tau must be positive"):
+            ExperimentConfig.from_run_config({"gamf-min-tau": 0.0})
+
+        with self.assertRaisesRegex(ValueError, "gamf-max-iters must be positive"):
+            ExperimentConfig.from_run_config({"gamf-max-iters": 0})
+
+        with self.assertRaisesRegex(
+            ValueError, "fedma-matching-epsilon must be non-negative"
+        ):
+            ExperimentConfig.from_run_config({"fedma-matching-epsilon": -0.1})
+
+        with self.assertRaisesRegex(ValueError, "fedcda-memory-size must be positive"):
+            ExperimentConfig.from_run_config({"fedcda-memory-size": 0})
+
+        with self.assertRaisesRegex(ValueError, "fedcda-num-batches must be positive"):
+            ExperimentConfig.from_run_config({"fedcda-num-batches": 0})
+
+        with self.assertRaisesRegex(ValueError, "fedcda-warmup-rounds must be non-negative"):
+            ExperimentConfig.from_run_config({"fedcda-warmup-rounds": -1})
+
+        with self.assertRaisesRegex(ValueError, "fedcda-loss-weight must be positive"):
+            ExperimentConfig.from_run_config({"fedcda-loss-weight": 0.0})
+
+        with self.assertRaisesRegex(ValueError, "feddrl-actor-learning-rate must be positive"):
+            ExperimentConfig.from_run_config({"feddrl-actor-learning-rate": 0.0})
+
+        with self.assertRaisesRegex(ValueError, "feddrl-critic-learning-rate must be positive"):
+            ExperimentConfig.from_run_config({"feddrl-critic-learning-rate": 0.0})
+
+        with self.assertRaisesRegex(ValueError, "feddrl-discount-factor must be in"):
+            ExperimentConfig.from_run_config({"feddrl-discount-factor": 1.0})
+
+        with self.assertRaisesRegex(ValueError, "feddrl-target-tau must be in"):
+            ExperimentConfig.from_run_config({"feddrl-target-tau": 0.0})
+
+        with self.assertRaisesRegex(ValueError, "feddrl-hidden-size must be positive"):
+            ExperimentConfig.from_run_config({"feddrl-hidden-size": 0})
+
+        with self.assertRaisesRegex(ValueError, "feddrl-replay-buffer-size must be positive"):
+            ExperimentConfig.from_run_config({"feddrl-replay-buffer-size": 0})
+
+        with self.assertRaisesRegex(ValueError, "feddrl-batch-size must be positive"):
+            ExperimentConfig.from_run_config({"feddrl-batch-size": 0})
+
+        with self.assertRaisesRegex(ValueError, "feddrl-updates-per-round must be non-negative"):
+            ExperimentConfig.from_run_config({"feddrl-updates-per-round": -1})
+
+        with self.assertRaisesRegex(ValueError, "feddrl-noise-scale must be non-negative"):
+            ExperimentConfig.from_run_config({"feddrl-noise-scale": -0.1})
+
+        with self.assertRaisesRegex(ValueError, "feddrl-std-scale must be in"):
+            ExperimentConfig.from_run_config({"feddrl-std-scale": 0.0})
 
         with self.assertRaisesRegex(ValueError, "fedent-beta must be in"):
             ExperimentConfig.from_run_config({"fedent-beta": 1.0})
