@@ -63,6 +63,9 @@ Mỗi algorithm có một file riêng trong `docs/algorithms/` để dễ mở r
 | [algorithms/pfedme.md](algorithms/pfedme.md) | pFedMe Moreau-style personalization với persisted personalized state và server beta mixing. |
 | [algorithms/fedper.md](algorithms/fedper.md) | FedPer shared base aggregation và personalized local head. |
 | [algorithms/fedrep.md](algorithms/fedrep.md) | FedRep shared representation aggregation và two-phase local training. |
+| [algorithms/fedala.md](algorithms/fedala.md) | FedALA adaptive local aggregation với persisted local model và ALA weights. |
+| [algorithms/fedamp.md](algorithms/fedamp.md) | FedAMP personalized cloud models với attentive message passing. |
+| [algorithms/fedlaa.md](algorithms/fedlaa.md) | FedLAA server-side layer-wise adaptive aggregation theo gradient alignment. |
 | [algorithms/fedprox.md](algorithms/fedprox.md) | FedProx strategy và proximal term ở client training. |
 | [algorithms/scaffold.md](algorithms/scaffold.md) | SCAFFOLD control variates phía server/client. |
 | [algorithms/moon.md](algorithms/moon.md) | MOON local model-contrastive training. |

@@ -132,6 +132,16 @@ class ExperimentConfig:
     fedper_personal_layers: int = 1
     fedrep_personal_layers: int = 1
     fedrep_representation_epochs: int = 1
+    fedala_eta: float = 1.0
+    fedala_rand_percent: int = 80
+    fedala_layer_count: int = 1
+    fedala_threshold: float = 0.01
+    fedala_num_pre_loss: int = 10
+    fedala_start_max_steps: int = 100
+    fedamp_lambda: float = 0.1
+    fedamp_alpha: float = 0.1
+    fedamp_sigma: float = 1.0
+    fedlaa_beta: float = 5.0
     input_channels: int = 1
     input_height: int = 28
     input_width: int = 28
@@ -546,6 +556,52 @@ class ExperimentConfig:
                 "fedrep-representation-epochs",
                 cls.fedrep_representation_epochs,
             ),
+            fedala_eta=_as_float(run_config, "fedala-eta", cls.fedala_eta),
+            fedala_rand_percent=_as_int(
+                run_config,
+                "fedala-rand-percent",
+                cls.fedala_rand_percent,
+            ),
+            fedala_layer_count=_as_int(
+                run_config,
+                "fedala-layer-count",
+                cls.fedala_layer_count,
+            ),
+            fedala_threshold=_as_float(
+                run_config,
+                "fedala-threshold",
+                cls.fedala_threshold,
+            ),
+            fedala_num_pre_loss=_as_int(
+                run_config,
+                "fedala-num-pre-loss",
+                cls.fedala_num_pre_loss,
+            ),
+            fedala_start_max_steps=_as_int(
+                run_config,
+                "fedala-start-max-steps",
+                cls.fedala_start_max_steps,
+            ),
+            fedamp_lambda=_as_float(
+                run_config,
+                "fedamp-lambda",
+                cls.fedamp_lambda,
+            ),
+            fedamp_alpha=_as_float(
+                run_config,
+                "fedamp-alpha",
+                cls.fedamp_alpha,
+            ),
+            fedamp_sigma=_as_float(
+                run_config,
+                "fedamp-sigma",
+                cls.fedamp_sigma,
+            ),
+            fedlaa_beta=_as_float(
+                run_config,
+                "fedlaa-beta",
+                cls.fedlaa_beta,
+            ),
             input_channels=_as_int(run_config, "input-channels", cls.input_channels),
             input_height=_as_int(run_config, "input-height", cls.input_height),
             input_width=_as_int(run_config, "input-width", cls.input_width),
@@ -732,6 +788,26 @@ class ExperimentConfig:
             raise ValueError("fedrep-personal-layers must be positive")
         if self.fedrep_representation_epochs <= 0:
             raise ValueError("fedrep-representation-epochs must be positive")
+        if self.fedala_eta <= 0:
+            raise ValueError("fedala-eta must be positive")
+        if not 0 < self.fedala_rand_percent <= 100:
+            raise ValueError("fedala-rand-percent must be in (0, 100]")
+        if self.fedala_layer_count <= 0:
+            raise ValueError("fedala-layer-count must be positive")
+        if self.fedala_threshold <= 0:
+            raise ValueError("fedala-threshold must be positive")
+        if self.fedala_num_pre_loss <= 0:
+            raise ValueError("fedala-num-pre-loss must be positive")
+        if self.fedala_start_max_steps <= 0:
+            raise ValueError("fedala-start-max-steps must be positive")
+        if self.fedamp_lambda <= 0:
+            raise ValueError("fedamp-lambda must be positive")
+        if self.fedamp_alpha <= 0:
+            raise ValueError("fedamp-alpha must be positive")
+        if self.fedamp_sigma <= 0:
+            raise ValueError("fedamp-sigma must be positive")
+        if self.fedlaa_beta <= 0:
+            raise ValueError("fedlaa-beta must be positive")
         if self.input_channels <= 0 or self.input_height <= 0 or self.input_width <= 0:
             raise ValueError("input dimensions must be positive")
         if self.num_classes <= 0:

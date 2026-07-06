@@ -149,6 +149,22 @@ fedper-personal-layers = 1
 fedrep-personal-layers = 1
 fedrep-representation-epochs = 1
 
+# FedALA
+fedala-eta = 1.0
+fedala-rand-percent = 80
+fedala-layer-count = 1
+fedala-threshold = 0.01
+fedala-num-pre-loss = 10
+fedala-start-max-steps = 100
+
+# FedAMP
+fedamp-lambda = 0.1
+fedamp-alpha = 0.1
+fedamp-sigma = 1.0
+
+# FedLAA
+fedlaa-beta = 5.0
+
 # FedProx
 proximal-mu = 0.1
 
@@ -308,6 +324,24 @@ flwr run . --run-config 'algorithm="fedper" fedper-personal-layers=1' --stream
 
 ```bash
 flwr run . --run-config 'algorithm="fedrep" fedrep-personal-layers=1 fedrep-representation-epochs=1' --stream
+```
+
+## Chạy FedALA
+
+```bash
+flwr run . --run-config 'algorithm="fedala" fedala-rand-percent=80 fedala-layer-count=1' --stream
+```
+
+## Chạy FedAMP
+
+```bash
+flwr run . --run-config 'algorithm="fedamp" fedamp-lambda=0.1 fedamp-alpha=0.1 fedamp-sigma=1.0' --stream
+```
+
+## Chạy FedLAA
+
+```bash
+flwr run . --run-config 'algorithm="fedlaa" fedlaa-beta=5.0' --stream
 ```
 
 ## Chạy SCAFFOLD

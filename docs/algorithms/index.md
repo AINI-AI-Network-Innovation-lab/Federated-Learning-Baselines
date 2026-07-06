@@ -30,6 +30,9 @@ Mỗi algorithm có một file riêng để dễ mở rộng khi thêm baseline 
 | pFedMe | [pfedme.md](pfedme.md) |
 | FedPer | [fedper.md](fedper.md) |
 | FedRep | [fedrep.md](fedrep.md) |
+| FedALA | [fedala.md](fedala.md) |
+| FedAMP | [fedamp.md](fedamp.md) |
+| FedLAA | [fedlaa.md](fedlaa.md) |
 | FedProx | [fedprox.md](fedprox.md) |
 | SCAFFOLD | [scaffold.md](scaffold.md) |
 | MOON | [moon.md](moon.md) |

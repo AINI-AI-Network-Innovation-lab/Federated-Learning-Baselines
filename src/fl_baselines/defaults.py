@@ -34,6 +34,9 @@ def register_default_components() -> None:
     from fl_baselines.algorithms.pfedme import PFedMeBuilder
     from fl_baselines.algorithms.fedper import FedPerBuilder
     from fl_baselines.algorithms.fedrep import FedRepBuilder
+    from fl_baselines.algorithms.fedala import FedALABuilder
+    from fl_baselines.algorithms.fedamp import FedAMPBuilder
+    from fl_baselines.algorithms.fedlaa import FedLAABuilder
     from fl_baselines.algorithms.fednova import FedNovaBuilder
     from fl_baselines.algorithms.fedprox import FedProxBuilder
     from fl_baselines.algorithms.moon import MoonBuilder
@@ -129,6 +132,12 @@ def register_default_components() -> None:
         ALGORITHMS.register("fedper", FedPerBuilder())
     if "fedrep" not in ALGORITHMS:
         ALGORITHMS.register("fedrep", FedRepBuilder())
+    if "fedala" not in ALGORITHMS:
+        ALGORITHMS.register("fedala", FedALABuilder())
+    if "fedamp" not in ALGORITHMS:
+        ALGORITHMS.register("fedamp", FedAMPBuilder())
+    if "fedlaa" not in ALGORITHMS:
+        ALGORITHMS.register("fedlaa", FedLAABuilder())
     if "fedprox" not in ALGORITHMS:
         ALGORITHMS.register("fedprox", FedProxBuilder())
     if "scaffold" not in ALGORITHMS:

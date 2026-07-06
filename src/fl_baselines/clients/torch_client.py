@@ -22,6 +22,7 @@ from fl_baselines.core.types import ClientDataLoaders
 from fl_baselines.training.ditto import train_ditto_personalized
 from fl_baselines.training.evaluate import evaluate_model
 from fl_baselines.training.fedaaw import train_fedaaw_client
+from fl_baselines.training.fedala import adaptive_local_aggregation
 from fl_baselines.training.feddc import train_feddc_client
 from fl_baselines.training.feddecorr import train_feddecorr_client
 from fl_baselines.training.fedma import train_fedma_client
@@ -86,6 +87,10 @@ class TorchFlowerClient(NumPyClient):
             return self._fit_fedper(parameters, config)
         if algorithm == "fedrep":
             return self._fit_fedrep(parameters, config)
+        if algorithm == "fedala":
+            return self._fit_fedala(parameters, config)
+        if algorithm == "fedamp":
+            return self._fit_fedamp(parameters, config)
         if algorithm == "scaffold":
             return self._fit_scaffold(parameters, config)
         if algorithm == "moon":
@@ -815,6 +820,92 @@ class TorchFlowerClient(NumPyClient):
         self.model.load_state_dict(reference_model.state_dict(), strict=True)
         return get_model_parameters(self.model), len(self.loaders.train.dataset), metrics
 
+    def _fit_fedala(
+        self,
+        parameters: list[np.ndarray],
+        config: dict[str, bool | bytes | float | int | str],
+    ) -> tuple[list[np.ndarray], int, dict[str, bool | bytes | float | int | str]]:
+        global_model = copy.deepcopy(self.model)
+        set_model_parameters(global_model, parameters)
+
+        state = self._load_fedala_state()
+        if state is None:
+            set_model_parameters(self.model, parameters)
+            weights = None
+            start_phase = True
+        else:
+            self.model.load_state_dict(state["model"], strict=True)
+            weights = state["weights"]
+            start_phase = bool(state["start_phase"])
+
+        server_round = int(config.get("server_round", 1))
+        if server_round > 1:
+            fedala_state = adaptive_local_aggregation(
+                self.model,
+                global_model,
+                self.loaders.train,
+                weights=weights,
+                layer_count=int(
+                    config.get("fedala_layer_count", self.config.fedala_layer_count)
+                ),
+                eta=float(config.get("fedala_eta", self.config.fedala_eta)),
+                rand_percent=int(
+                    config.get("fedala_rand_percent", self.config.fedala_rand_percent)
+                ),
+                threshold=float(
+                    config.get("fedala_threshold", self.config.fedala_threshold)
+                ),
+                num_pre_loss=int(
+                    config.get("fedala_num_pre_loss", self.config.fedala_num_pre_loss)
+                ),
+                start_max_steps=int(
+                    config.get(
+                        "fedala_start_max_steps",
+                        self.config.fedala_start_max_steps,
+                    )
+                ),
+                device=self.config.device,
+                start_phase=start_phase,
+            )
+            weights = fedala_state.weights
+            start_phase = fedala_state.start_phase
+
+        local_epochs = int(config.get("local_epochs", self.config.local_epochs))
+        learning_rate = float(config.get("learning_rate", self.config.learning_rate))
+        metrics = train_one_client(
+            self.model,
+            self.loaders.train,
+            epochs=local_epochs,
+            learning_rate=learning_rate,
+            device=self.config.device,
+        )
+        self._save_fedala_state(weights, start_phase)
+        return get_model_parameters(self.model), len(self.loaders.train.dataset), metrics
+
+    def _fit_fedamp(
+        self,
+        parameters: list[np.ndarray],
+        config: dict[str, bool | bytes | float | int | str],
+    ) -> tuple[list[np.ndarray], int, dict[str, bool | bytes | float | int | str]]:
+        set_model_parameters(self.model, parameters)
+        local_epochs = int(config.get("local_epochs", self.config.local_epochs))
+        learning_rate = float(config.get("learning_rate", self.config.learning_rate))
+        proximal_mu = float(
+            config.get(
+                "fedamp_proximal_mu",
+                self.config.fedamp_lambda / self.config.fedamp_alpha,
+            )
+        )
+        metrics = train_one_client(
+            self.model,
+            self.loaders.train,
+            epochs=local_epochs,
+            learning_rate=learning_rate,
+            device=self.config.device,
+            proximal_mu=proximal_mu,
+        )
+        return get_model_parameters(self.model), len(self.loaders.train.dataset), metrics
+
     def _feddyn_state_path(self) -> Path:
         return (
             Path(self.config.output_dir)
@@ -962,6 +1053,47 @@ class TorchFlowerClient(NumPyClient):
         personal_path = self._pfedme_personalized_model_path()
         personal_path.parent.mkdir(parents=True, exist_ok=True)
         torch.save(model.state_dict(), personal_path)
+
+    def _fedala_state_path(self) -> Path:
+        return (
+            Path(self.config.output_dir)
+            / "fedala_clients"
+            / self.client_id
+            / "state.pt"
+        )
+
+    def _load_fedala_state(self) -> dict[str, object] | None:
+        state_path = self._fedala_state_path()
+        if not state_path.exists():
+            return None
+        return torch.load(
+            state_path,
+            map_location="cpu",
+            weights_only=True,
+        )
+
+    def _save_fedala_state(
+        self,
+        weights: list[torch.Tensor] | None,
+        start_phase: bool,
+    ) -> None:
+        state_path = self._fedala_state_path()
+        state_path.parent.mkdir(parents=True, exist_ok=True)
+        torch.save(
+            {
+                "model": {
+                    key: value.detach().cpu().clone()
+                    for key, value in self.model.state_dict().items()
+                },
+                "weights": (
+                    None
+                    if weights is None
+                    else [weight.detach().cpu().clone() for weight in weights]
+                ),
+                "start_phase": start_phase,
+            },
+            state_path,
+        )
 
     def _fit_fedper(
         self,
@@ -1173,6 +1305,12 @@ class TorchFlowerClient(NumPyClient):
                 global_mask=global_mask,
             )
             return loss, len(self.loaders.test.dataset), metrics
+        elif algorithm == "fedala":
+            state = self._load_fedala_state()
+            if state is None:
+                set_model_parameters(self.model, parameters)
+            else:
+                self.model.load_state_dict(state["model"], strict=True)
         else:
             set_model_parameters(self.model, parameters)
         loss, metrics = evaluate_model(

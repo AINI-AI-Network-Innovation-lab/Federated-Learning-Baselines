@@ -180,6 +180,9 @@ Các algorithm hiện có:
 - `pfedme`
 - `fedper`
 - `fedrep`
+- `fedala`
+- `fedamp`
+- `fedlaa`
 - `fedprox`
 - `scaffold`
 - `moon`
@@ -191,6 +194,9 @@ Algorithm builder nên đảm bảo:
 - dùng metric aggregation chung nếu phù hợp
 - nếu có hyperparameter mới, thêm field vào `ExperimentConfig` và default trong `pyproject.toml`
 - nếu thuật toán cần state phía client, ví dụ SCAFFOLD cần client control variates, MOON cần local model round trước, pFedMe/Ditto cần persisted personalized model, hoặc FedPer/FedRep cần personal head theo client, hãy cô lập logic đó trong `clients/` và `training/` thay vì hard-code dataset/model
+- nếu thuật toán cá nhân hóa local initialization bằng state client xuyên round, như FedALA, hãy giữ server strategy FedAvg-compatible và persist local model/aggregation weights theo `client_id` trong `output-dir`
+- nếu thuật toán cần server gửi personalized model riêng cho từng client, như FedAMP, hãy override `configure_fit` trong strategy và giữ client training generic/proximal qua fit-config
+- nếu thuật toán chỉ đổi server aggregation theo từng layer bằng gradient alignment, như FedLAA, hãy ưu tiên giữ client path như FedAvg và cô lập state smoothed angles hoàn toàn trong `algorithms/`
 - nếu thuật toán cần state ở cả client và payload tensor phía server, như FedDC hoặc SCAFFOLD, hãy truyền state đó bằng parameter payload thay vì nhét vào scalar metrics
 - nếu thuật toán chỉ đổi server aggregation mà vẫn giữ local training path mặc định, như FedExP, ưu tiên implement gọn trong `algorithms/` thay vì mở nhánh riêng ở `TorchFlowerClient`
 - nếu thuật toán chọn local models xuyen nhieu rounds nhưng khong doi local objective, nhu FedCDA, uu tien de strategy tu quan ly cross-round cache/selection trong `algorithms/` thay vi them persisted state vao client

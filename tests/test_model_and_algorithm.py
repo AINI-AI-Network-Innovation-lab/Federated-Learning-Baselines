@@ -1,3 +1,4 @@
+import copy
 import json
 import sys
 import tempfile
@@ -42,6 +43,9 @@ from fl_baselines.algorithms.fedproto import FedProtoBuilder, FedProtoStrategy
 from fl_baselines.algorithms.pfedme import PFedMeBuilder, PFedMeStrategy
 from fl_baselines.algorithms.fedper import FedPerBuilder, FedPerStrategy
 from fl_baselines.algorithms.fedrep import FedRepBuilder, FedRepStrategy
+from fl_baselines.algorithms.fedala import FedALABuilder
+from fl_baselines.algorithms.fedamp import FedAMPBuilder, FedAMPStrategy
+from fl_baselines.algorithms.fedlaa import FedLAABuilder, FedLAAStrategy
 from fl_baselines.algorithms.fednova import FedNovaBuilder, FedNovaStrategy
 from fl_baselines.algorithms.fedprox import FedProxBuilder
 from fl_baselines.algorithms.moon import MoonBuilder, MoonStrategy
@@ -75,6 +79,7 @@ from fl_baselines.training.fedsam import train_fedsam_client
 from fl_baselines.training.fedspeed import train_fedspeed_client
 from fl_baselines.training.fedntd import train_fedntd_client
 from fl_baselines.training.moon import train_moon_client
+from fl_baselines.training.fedala import adaptive_local_aggregation
 from fl_baselines.training.scaffold import train_scaffold_client
 from fl_baselines.training.train import train_one_client
 
@@ -1435,6 +1440,432 @@ class ModelAndAlgorithmTest(unittest.TestCase):
         self.assertEqual(fit_config["algorithm"], "fedrep")
         self.assertEqual(fit_config["fedrep_representation_epochs"], 2)
         self.assertLess(len(strategy.shared_parameter_indices), full_parameter_count)
+
+    def test_fedala_builder_creates_fedavg_strategy_with_ala_config(self) -> None:
+        config = ExperimentConfig.from_run_config(
+            {
+                "num-supernodes": 4,
+                "fedala-eta": 0.5,
+                "fedala-rand-percent": 40,
+                "fedala-layer-count": 2,
+                "fedala-threshold": 0.02,
+                "fedala-num-pre-loss": 4,
+                "fedala-start-max-steps": 8,
+            }
+        )
+        model = MnistCnnBuilder().build_model(config)
+
+        strategy = FedALABuilder().build_strategy(config, model, evaluate_fn=None)
+        fit_config = strategy.on_fit_config_fn(2)
+
+        self.assertIsInstance(strategy, FedAvg)
+        self.assertEqual(strategy.min_fit_clients, 4)
+        self.assertEqual(fit_config["algorithm"], "fedala")
+        self.assertEqual(fit_config["server_round"], 2)
+        self.assertEqual(fit_config["fedala_eta"], 0.5)
+        self.assertEqual(fit_config["fedala_rand_percent"], 40)
+        self.assertEqual(fit_config["fedala_layer_count"], 2)
+        self.assertEqual(fit_config["fedala_threshold"], 0.02)
+        self.assertEqual(fit_config["fedala_num_pre_loss"], 4)
+        self.assertEqual(fit_config["fedala_start_max_steps"], 8)
+
+    def test_fedala_builder_supports_current_models(self) -> None:
+        cases = [
+            (MnistCnnBuilder(), {}),
+            (LeNetBuilder(), {}),
+            (
+                ResNet9Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                ResNet18Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                ResNet34Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                InceptionBuilder(),
+                {"input-channels": 3, "input-height": 75, "input-width": 75},
+            ),
+        ]
+
+        for model_builder, overrides in cases:
+            with self.subTest(model=model_builder.name):
+                config = ExperimentConfig.from_run_config(
+                    {"algorithm": "fedala", "num-supernodes": 2, **overrides}
+                )
+                model = model_builder.build_model(config)
+                strategy = FedALABuilder().build_strategy(config, model, evaluate_fn=None)
+                self.assertEqual(strategy.on_fit_config_fn(1)["algorithm"], "fedala")
+
+    def test_adaptive_local_aggregation_blends_selected_higher_layers(self) -> None:
+        local_model = torch.nn.Sequential(torch.nn.Linear(2, 2), torch.nn.Linear(2, 2))
+        global_model = copy.deepcopy(local_model)
+        with torch.no_grad():
+            for parameter in local_model.parameters():
+                parameter.fill_(0.0)
+            for parameter in global_model.parameters():
+                parameter.fill_(1.0)
+
+        loader = DataLoader(
+            TensorDataset(torch.ones(4, 2), torch.zeros(4, dtype=torch.long)),
+            batch_size=2,
+        )
+
+        result = adaptive_local_aggregation(
+            local_model,
+            global_model,
+            loader,
+            weights=None,
+            layer_count=1,
+            eta=0.1,
+            rand_percent=100,
+            threshold=0.01,
+            num_pre_loss=2,
+            start_max_steps=1,
+            device="cpu",
+            start_phase=True,
+        )
+
+        parameters = list(local_model.parameters())
+        self.assertTrue(torch.allclose(parameters[0], torch.ones_like(parameters[0])))
+        self.assertTrue(torch.allclose(parameters[1], torch.ones_like(parameters[1])))
+        self.assertEqual(len(result.weights), 2)
+        for weight in result.weights:
+            self.assertGreaterEqual(float(weight.min()), 0.0)
+            self.assertLessEqual(float(weight.max()), 1.0)
+        self.assertFalse(result.start_phase)
+
+    def test_fedala_client_persists_local_model_and_ala_weights(self) -> None:
+        model = torch.nn.Linear(2, 2)
+        loaders = torch_client_module.ClientDataLoaders(
+            train=DataLoader(
+                TensorDataset(torch.ones(4, 2), torch.zeros(4, dtype=torch.long)),
+                batch_size=2,
+            ),
+            test=DataLoader(
+                TensorDataset(torch.ones(2, 2), torch.zeros(2, dtype=torch.long)),
+                batch_size=1,
+            ),
+        )
+
+        with tempfile.TemporaryDirectory() as output_dir:
+            config = ExperimentConfig.from_run_config(
+                {
+                    "algorithm": "fedala",
+                    "output-dir": output_dir,
+                    "fedala-layer-count": 1,
+                    "fedala-rand-percent": 100,
+                    "fedala-start-max-steps": 1,
+                    "fedala-num-pre-loss": 2,
+                    "local-epochs": 1,
+                    "learning-rate": 0.01,
+                }
+            )
+            client = TorchFlowerClient(model, loaders, config, client_id="client-1")
+            global_parameters = [
+                np.ones_like(parameter) for parameter in get_model_parameters(model)
+            ]
+
+            returned_parameters, num_examples, metrics = client.fit(
+                global_parameters,
+                {
+                    "algorithm": "fedala",
+                    "server_round": 2,
+                    "local_epochs": 1,
+                    "learning_rate": 0.01,
+                    "fedala_eta": 1.0,
+                    "fedala_rand_percent": 100,
+                    "fedala_layer_count": 1,
+                    "fedala_threshold": 0.01,
+                    "fedala_num_pre_loss": 2,
+                    "fedala_start_max_steps": 1,
+                },
+            )
+
+            self.assertEqual(num_examples, 4)
+            self.assertEqual(len(returned_parameters), len(global_parameters))
+            self.assertIn("train_loss", metrics)
+            state_path = Path(output_dir) / "fedala_clients" / "client-1" / "state.pt"
+            self.assertTrue(state_path.exists())
+
+    def test_fedamp_builder_creates_personalized_strategy(self) -> None:
+        config = ExperimentConfig.from_run_config(
+            {
+                "num-supernodes": 4,
+                "fedamp-lambda": 0.2,
+                "fedamp-alpha": 0.05,
+                "fedamp-sigma": 2.0,
+            }
+        )
+        model = MnistCnnBuilder().build_model(config)
+
+        strategy = FedAMPBuilder().build_strategy(config, model, evaluate_fn=None)
+        fit_config = strategy.on_fit_config_fn(1)
+
+        self.assertIsInstance(strategy, FedAMPStrategy)
+        self.assertEqual(strategy.min_fit_clients, 4)
+        self.assertEqual(strategy.fedamp_lambda, 0.2)
+        self.assertEqual(strategy.alpha, 0.05)
+        self.assertEqual(strategy.sigma, 2.0)
+        self.assertEqual(fit_config["algorithm"], "fedamp")
+        self.assertEqual(fit_config["fedamp_proximal_mu"], 4.0)
+
+    def test_fedamp_builder_supports_current_models(self) -> None:
+        cases = [
+            (MnistCnnBuilder(), {}),
+            (LeNetBuilder(), {}),
+            (
+                ResNet9Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                ResNet18Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                ResNet34Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                InceptionBuilder(),
+                {"input-channels": 3, "input-height": 75, "input-width": 75},
+            ),
+        ]
+
+        for model_builder, overrides in cases:
+            with self.subTest(model=model_builder.name):
+                config = ExperimentConfig.from_run_config(
+                    {"algorithm": "fedamp", "num-supernodes": 2, **overrides}
+                )
+                model = model_builder.build_model(config)
+                strategy = FedAMPBuilder().build_strategy(config, model, evaluate_fn=None)
+                self.assertEqual(strategy.on_fit_config_fn(1)["algorithm"], "fedamp")
+
+    def test_fedamp_strategy_builds_personalized_cloud_models(self) -> None:
+        model = torch.nn.Linear(1, 1, bias=False)
+        initial_parameters = ndarrays_to_parameters(get_model_parameters(model))
+
+        with tempfile.TemporaryDirectory() as output_dir:
+            strategy = FedAMPStrategy(
+                fraction_fit=1.0,
+                fraction_evaluate=1.0,
+                min_fit_clients=2,
+                min_evaluate_clients=2,
+                min_available_clients=2,
+                initial_parameters=initial_parameters,
+                fedamp_lambda=0.1,
+                alpha=0.1,
+                sigma=10.0,
+                checkpoint_model=model,
+                output_dir=output_dir,
+            )
+            results = []
+            for cid, value in [("0", 0.0), ("1", 1.0)]:
+                client_proxy = type("ClientProxy", (), {"cid": cid})()
+                parameters = ndarrays_to_parameters(
+                    [np.asarray([[value]], dtype=np.float32)]
+                )
+                fit_res = FitRes(
+                    status=Status(Code.OK, ""),
+                    parameters=parameters,
+                    num_examples=1,
+                    metrics={"train_loss": 0.1},
+                )
+                results.append((client_proxy, fit_res))
+
+            aggregated_parameters, metrics = strategy.aggregate_fit(1, results, [])
+
+            self.assertIsNotNone(aggregated_parameters)
+            self.assertEqual(metrics["fedamp_client_count"], 2)
+            self.assertEqual(sorted(strategy.personalized_cloud_models.keys()), ["0", "1"])
+            self.assertEqual(len(strategy.last_message_weights), 2)
+            for weights in strategy.last_message_weights.values():
+                self.assertAlmostEqual(sum(weights.values()), 1.0, places=6)
+                self.assertGreater(weights["0"], 0.0)
+                self.assertGreater(weights["1"], 0.0)
+
+    def test_fedamp_configure_fit_sends_personalized_cloud_parameters(self) -> None:
+        model = torch.nn.Linear(1, 1, bias=False)
+        initial_parameters = ndarrays_to_parameters(get_model_parameters(model))
+        client_proxy = type("ClientProxy", (), {"cid": "0"})()
+
+        class FakeClientManager:
+            def num_available(self) -> int:
+                return 1
+
+            def sample(self, num_clients: int, min_num_clients: int):
+                return [client_proxy]
+
+        with tempfile.TemporaryDirectory() as output_dir:
+            strategy = FedAMPStrategy(
+                fraction_fit=1.0,
+                fraction_evaluate=1.0,
+                min_fit_clients=1,
+                min_evaluate_clients=1,
+                min_available_clients=1,
+                initial_parameters=initial_parameters,
+                on_fit_config_fn=lambda _: {"algorithm": "fedamp"},
+                fedamp_lambda=0.1,
+                alpha=0.1,
+                sigma=10.0,
+                checkpoint_model=model,
+                output_dir=output_dir,
+            )
+            strategy.personalized_cloud_models["0"] = [
+                np.asarray([[3.0]], dtype=np.float32)
+            ]
+
+            fit_instructions = strategy.configure_fit(
+                2,
+                initial_parameters,
+                FakeClientManager(),
+            )
+
+            sent_parameters = parameters_to_ndarrays(fit_instructions[0][1].parameters)
+            self.assertEqual(float(sent_parameters[0][0, 0]), 3.0)
+            self.assertEqual(fit_instructions[0][1].config["algorithm"], "fedamp")
+
+    def test_fedamp_client_routes_to_proximal_training(self) -> None:
+        model = torch.nn.Linear(2, 2)
+        loaders = torch_client_module.ClientDataLoaders(
+            train=DataLoader(
+                TensorDataset(torch.ones(4, 2), torch.zeros(4, dtype=torch.long)),
+                batch_size=2,
+            ),
+            test=DataLoader(
+                TensorDataset(torch.ones(2, 2), torch.zeros(2, dtype=torch.long)),
+                batch_size=1,
+            ),
+        )
+        config = ExperimentConfig.from_run_config(
+            {
+                "algorithm": "fedamp",
+                "fedamp-lambda": 0.2,
+                "fedamp-alpha": 0.1,
+                "local-epochs": 1,
+                "learning-rate": 0.01,
+            }
+        )
+        client = TorchFlowerClient(model, loaders, config, client_id="client-1")
+        cloud_parameters = [
+            np.ones_like(parameter) for parameter in get_model_parameters(model)
+        ]
+
+        returned_parameters, num_examples, metrics = client.fit(
+            cloud_parameters,
+            {
+                "algorithm": "fedamp",
+                "local_epochs": 1,
+                "learning_rate": 0.01,
+                "fedamp_proximal_mu": 2.0,
+            },
+        )
+
+        self.assertEqual(num_examples, 4)
+        self.assertEqual(len(returned_parameters), len(cloud_parameters))
+        self.assertIn("train_loss", metrics)
+
+    def test_fedlaa_builder_creates_strategy(self) -> None:
+        config = ExperimentConfig.from_run_config(
+            {
+                "num-supernodes": 4,
+                "fedlaa-beta": 3.0,
+            }
+        )
+        model = MnistCnnBuilder().build_model(config)
+
+        strategy = FedLAABuilder().build_strategy(config, model, evaluate_fn=None)
+        fit_config = strategy.on_fit_config_fn(3)
+
+        self.assertIsInstance(strategy, FedLAAStrategy)
+        self.assertEqual(strategy.min_fit_clients, 4)
+        self.assertEqual(strategy.beta, 3.0)
+        self.assertEqual(fit_config["algorithm"], "fedlaa")
+        self.assertEqual(fit_config["server_round"], 3)
+
+    def test_fedlaa_builder_supports_current_models(self) -> None:
+        cases = [
+            (MnistCnnBuilder(), {}),
+            (LeNetBuilder(), {}),
+            (
+                ResNet9Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                ResNet18Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                ResNet34Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                InceptionBuilder(),
+                {"input-channels": 3, "input-height": 75, "input-width": 75},
+            ),
+        ]
+
+        for model_builder, overrides in cases:
+            with self.subTest(model=model_builder.name):
+                config = ExperimentConfig.from_run_config(
+                    {"algorithm": "fedlaa", "num-supernodes": 2, **overrides}
+                )
+                model = model_builder.build_model(config)
+                strategy = FedLAABuilder().build_strategy(config, model, evaluate_fn=None)
+                self.assertEqual(strategy.on_fit_config_fn(1)["algorithm"], "fedlaa")
+
+    def test_fedlaa_strategy_weights_layers_independently(self) -> None:
+        model = torch.nn.Sequential(
+            torch.nn.Linear(1, 1, bias=False),
+            torch.nn.Linear(1, 1, bias=False),
+        )
+        with torch.no_grad():
+            for parameter in model.parameters():
+                parameter.zero_()
+        initial_parameters = ndarrays_to_parameters(get_model_parameters(model))
+
+        with tempfile.TemporaryDirectory() as output_dir:
+            strategy = FedLAAStrategy(
+                fraction_fit=1.0,
+                fraction_evaluate=1.0,
+                min_fit_clients=2,
+                min_evaluate_clients=2,
+                min_available_clients=2,
+                initial_parameters=initial_parameters,
+                on_fit_config_fn=lambda _: {
+                    "algorithm": "fedlaa",
+                    "learning_rate": 1.0,
+                    "local_epochs": 1,
+                },
+                beta=5.0,
+                checkpoint_model=model,
+                output_dir=output_dir,
+            )
+            results = []
+            for cid, values in [
+                ("0", [np.asarray([[2.0]], dtype=np.float32), np.asarray([[-0.1]], dtype=np.float32)]),
+                ("1", [np.asarray([[-0.5]], dtype=np.float32), np.asarray([[2.0]], dtype=np.float32)]),
+            ]:
+                client_proxy = type("ClientProxy", (), {"cid": cid})()
+                fit_res = FitRes(
+                    status=Status(Code.OK, ""),
+                    parameters=ndarrays_to_parameters(values),
+                    num_examples=1,
+                    metrics={"train_loss": 0.1},
+                )
+                results.append((client_proxy, fit_res))
+
+            aggregated_parameters, metrics = strategy.aggregate_fit(1, results, [])
+
+            self.assertIsNotNone(aggregated_parameters)
+            self.assertEqual(metrics["fedlaa_layer_count"], 2)
+            self.assertGreater(strategy.last_layer_weights[0][0], strategy.last_layer_weights[0][1])
+            self.assertGreater(strategy.last_layer_weights[1][1], strategy.last_layer_weights[1][0])
+            self.assertEqual(len(strategy.smoothed_angles["0"]), 2)
+            self.assertEqual(len(strategy.smoothed_angles["1"]), 2)
 
     def test_scaffold_builder_creates_strategy(self) -> None:
         config = ExperimentConfig.from_run_config({"num-supernodes": 4})

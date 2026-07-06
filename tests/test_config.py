@@ -111,6 +111,16 @@ class ExperimentConfigTest(unittest.TestCase):
                 "fedper-personal-layers": 2,
                 "fedrep-personal-layers": 2,
                 "fedrep-representation-epochs": 3,
+                "fedala-eta": 0.5,
+                "fedala-rand-percent": 40,
+                "fedala-layer-count": 2,
+                "fedala-threshold": 0.02,
+                "fedala-num-pre-loss": 4,
+                "fedala-start-max-steps": 8,
+                "fedamp-lambda": 0.2,
+                "fedamp-alpha": 0.05,
+                "fedamp-sigma": 2.0,
+                "fedlaa-beta": 3.0,
                 "input-channels": 3,
                 "input-height": 32,
                 "input-width": 32,
@@ -205,6 +215,16 @@ class ExperimentConfigTest(unittest.TestCase):
         self.assertEqual(config.fedper_personal_layers, 2)
         self.assertEqual(config.fedrep_personal_layers, 2)
         self.assertEqual(config.fedrep_representation_epochs, 3)
+        self.assertEqual(config.fedala_eta, 0.5)
+        self.assertEqual(config.fedala_rand_percent, 40)
+        self.assertEqual(config.fedala_layer_count, 2)
+        self.assertEqual(config.fedala_threshold, 0.02)
+        self.assertEqual(config.fedala_num_pre_loss, 4)
+        self.assertEqual(config.fedala_start_max_steps, 8)
+        self.assertEqual(config.fedamp_lambda, 0.2)
+        self.assertEqual(config.fedamp_alpha, 0.05)
+        self.assertEqual(config.fedamp_sigma, 2.0)
+        self.assertEqual(config.fedlaa_beta, 3.0)
         self.assertEqual(config.input_shape, (3, 32, 32))
         self.assertEqual(config.num_classes, 100)
         self.assertEqual(config.emnist_split, "letters")
@@ -445,6 +465,36 @@ class ExperimentConfigTest(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "fedrep-representation-epochs must be positive"):
             ExperimentConfig.from_run_config({"fedrep-representation-epochs": 0})
+
+        with self.assertRaisesRegex(ValueError, "fedala-eta must be positive"):
+            ExperimentConfig.from_run_config({"fedala-eta": 0.0})
+
+        with self.assertRaisesRegex(ValueError, "fedala-rand-percent must be in"):
+            ExperimentConfig.from_run_config({"fedala-rand-percent": 0})
+
+        with self.assertRaisesRegex(ValueError, "fedala-layer-count must be positive"):
+            ExperimentConfig.from_run_config({"fedala-layer-count": 0})
+
+        with self.assertRaisesRegex(ValueError, "fedala-threshold must be positive"):
+            ExperimentConfig.from_run_config({"fedala-threshold": 0.0})
+
+        with self.assertRaisesRegex(ValueError, "fedala-num-pre-loss must be positive"):
+            ExperimentConfig.from_run_config({"fedala-num-pre-loss": 0})
+
+        with self.assertRaisesRegex(ValueError, "fedala-start-max-steps must be positive"):
+            ExperimentConfig.from_run_config({"fedala-start-max-steps": 0})
+
+        with self.assertRaisesRegex(ValueError, "fedamp-lambda must be positive"):
+            ExperimentConfig.from_run_config({"fedamp-lambda": 0.0})
+
+        with self.assertRaisesRegex(ValueError, "fedamp-alpha must be positive"):
+            ExperimentConfig.from_run_config({"fedamp-alpha": 0.0})
+
+        with self.assertRaisesRegex(ValueError, "fedamp-sigma must be positive"):
+            ExperimentConfig.from_run_config({"fedamp-sigma": 0.0})
+
+        with self.assertRaisesRegex(ValueError, "fedlaa-beta must be positive"):
+            ExperimentConfig.from_run_config({"fedlaa-beta": 0.0})
 
     def test_invalid_partitioner_fails_fast(self) -> None:
         with self.assertRaisesRegex(ValueError, "partitioner must be one of"):
