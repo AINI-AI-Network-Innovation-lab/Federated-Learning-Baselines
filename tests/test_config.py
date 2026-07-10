@@ -138,6 +138,8 @@ class ExperimentConfigTest(unittest.TestCase):
                 "fedlc-tau": 0.5,
                 "fedlc-epsilon": 1e-4,
                 "fedrs-alpha": 0.5,
+                "fedlama-base-interval": 1,
+                "fedlama-interval-factor": 2.0,
                 "ditto-lambda": 0.3,
                 "pfedme-lambda": 15.0,
                 "pfedme-beta": 0.7,
@@ -279,6 +281,8 @@ class ExperimentConfigTest(unittest.TestCase):
         self.assertEqual(config.fedlc_tau, 0.5)
         self.assertEqual(config.fedlc_epsilon, 1e-4)
         self.assertEqual(config.fedrs_alpha, 0.5)
+        self.assertEqual(config.fedlama_base_interval, 1)
+        self.assertEqual(config.fedlama_interval_factor, 2.0)
         self.assertEqual(config.ditto_lambda, 0.3)
         self.assertEqual(config.pfedme_lambda, 15.0)
         self.assertEqual(config.pfedme_beta, 0.7)
@@ -598,6 +602,14 @@ class ExperimentConfigTest(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "fedrs-alpha must be in"):
             ExperimentConfig.from_run_config({"fedrs-alpha": 1.1})
+
+        with self.assertRaisesRegex(ValueError, "fedlama-base-interval must be positive"):
+            ExperimentConfig.from_run_config({"fedlama-base-interval": 0})
+
+        with self.assertRaisesRegex(
+            ValueError, "fedlama-interval-factor must be at least 1"
+        ):
+            ExperimentConfig.from_run_config({"fedlama-interval-factor": 0.5})
 
         with self.assertRaisesRegex(ValueError, "ditto-lambda must be non-negative"):
             ExperimentConfig.from_run_config({"ditto-lambda": -0.1})

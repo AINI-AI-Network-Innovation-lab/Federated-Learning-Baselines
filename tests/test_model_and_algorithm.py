@@ -49,6 +49,7 @@ from fl_baselines.algorithms.pfedme import PFedMeBuilder, PFedMeStrategy
 from fl_baselines.algorithms.fedper import FedPerBuilder, FedPerStrategy
 from fl_baselines.algorithms.fedrep import FedRepBuilder, FedRepStrategy
 from fl_baselines.algorithms.fedala import FedALABuilder
+from fl_baselines.algorithms.fedlama import FedLAMABuilder, FedLAMAStrategy
 from fl_baselines.algorithms.fedamp import FedAMPBuilder, FedAMPStrategy
 from fl_baselines.algorithms.fedlaa import FedLAABuilder, FedLAAStrategy
 from fl_baselines.algorithms.fednova import FedNovaBuilder, FedNovaStrategy
@@ -92,6 +93,12 @@ from fl_baselines.training.fedrs import (
     fedrs_loss,
     observed_class_mask,
     train_fedrs_client,
+)
+from fl_baselines.training.fedlama import (
+    compute_fedlama_layer_discrepancies,
+    fedlama_sync_mask_for_round,
+    parse_fedlama_sync_mask,
+    train_fedlama_client,
 )
 from fl_baselines.training.moon import train_moon_client
 from fl_baselines.training.fedala import adaptive_local_aggregation
@@ -2253,6 +2260,196 @@ class ModelAndAlgorithmTest(unittest.TestCase):
             self.assertGreater(strategy.last_layer_weights[1][1], strategy.last_layer_weights[1][0])
             self.assertEqual(len(strategy.smoothed_angles["0"]), 2)
             self.assertEqual(len(strategy.smoothed_angles["1"]), 2)
+
+    def test_fedlama_builder_creates_strategy(self) -> None:
+        config = ExperimentConfig.from_run_config(
+            {
+                "num-supernodes": 4,
+                "fedlama-base-interval": 1,
+                "fedlama-interval-factor": 2.0,
+            }
+        )
+        model = MnistCnnBuilder().build_model(config)
+
+        strategy = FedLAMABuilder().build_strategy(config, model, evaluate_fn=None)
+        fit_config = strategy.on_fit_config_fn(3)
+
+        self.assertIsInstance(strategy, FedLAMAStrategy)
+        self.assertEqual(strategy.min_fit_clients, 4)
+        self.assertEqual(strategy.base_interval, 1)
+        self.assertEqual(strategy.interval_factor, 2.0)
+        self.assertEqual(fit_config["algorithm"], "fedlama")
+        self.assertEqual(fit_config["fedlama_base_interval"], 1)
+        self.assertEqual(fit_config["fedlama_interval_factor"], 2.0)
+
+    def test_fedlama_builder_supports_current_models(self) -> None:
+        cases = [
+            (MnistCnnBuilder(), {}),
+            (LeNetBuilder(), {}),
+            (
+                ResNet9Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                ResNet18Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                ResNet34Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                InceptionBuilder(),
+                {"input-channels": 3, "input-height": 75, "input-width": 75},
+            ),
+        ]
+
+        for model_builder, overrides in cases:
+            with self.subTest(model=model_builder.name):
+                config = ExperimentConfig.from_run_config(
+                    {
+                        "algorithm": "fedlama",
+                        "num-supernodes": 2,
+                        "fedlama-base-interval": 1,
+                        "fedlama-interval-factor": 2.0,
+                        **overrides,
+                    }
+                )
+                model = model_builder.build_model(config)
+                strategy = FedLAMABuilder().build_strategy(config, model, evaluate_fn=None)
+                self.assertEqual(strategy.on_fit_config_fn(1)["algorithm"], "fedlama")
+
+    def test_fedlama_strategy_reweights_layer_sync_intervals(self) -> None:
+        model = torch.nn.Sequential(
+            torch.nn.Linear(1, 1, bias=False),
+            torch.nn.Linear(1, 1, bias=False),
+        )
+        with torch.no_grad():
+            for parameter in model.parameters():
+                parameter.zero_()
+        initial_parameters = ndarrays_to_parameters(get_model_parameters(model))
+
+        with tempfile.TemporaryDirectory() as output_dir:
+            strategy = FedLAMAStrategy(
+                fraction_fit=1.0,
+                fraction_evaluate=1.0,
+                min_fit_clients=2,
+                min_evaluate_clients=2,
+                min_available_clients=2,
+                initial_parameters=initial_parameters,
+                on_fit_config_fn=lambda _: {
+                    "algorithm": "fedlama",
+                    "learning_rate": 1.0,
+                    "local_epochs": 1,
+                    "fedlama_base_interval": 1,
+                    "fedlama_interval_factor": 2.0,
+                },
+                base_interval=1,
+                interval_factor=2.0,
+                checkpoint_model=model,
+                output_dir=output_dir,
+            )
+            results = []
+            for cid, values in [
+                ("0", [np.asarray([[0.1]], dtype=np.float32), np.asarray([[3.0]], dtype=np.float32)]),
+                ("1", [np.asarray([[0.1]], dtype=np.float32), np.asarray([[2.5]], dtype=np.float32)]),
+            ]:
+                client_proxy = type("ClientProxy", (), {"cid": cid})()
+                fit_res = FitRes(
+                    status=Status(Code.OK, ""),
+                    parameters=ndarrays_to_parameters(values),
+                    num_examples=1,
+                    metrics={
+                        "train_loss": 0.1,
+                        "fedlama_layer_discrepancies": json.dumps([0.0, 9.0]),
+                    },
+                )
+                results.append((client_proxy, fit_res))
+
+            aggregated_parameters, metrics = strategy.aggregate_fit(1, results, [])
+
+            self.assertIsNotNone(aggregated_parameters)
+            self.assertEqual(strategy.layer_intervals, [2, 1])
+            self.assertEqual(metrics["fedlama_sync_layer_count"], 2)
+            self.assertEqual(fedlama_sync_mask_for_round(2, strategy.layer_intervals), [False, True])
+
+    def test_fedlama_client_routes_to_stateful_trainer(self) -> None:
+        with tempfile.TemporaryDirectory() as output_dir:
+            config = ExperimentConfig.from_run_config(
+                {
+                    "algorithm": "fedlama",
+                    "output-dir": output_dir,
+                }
+            )
+            model = torch.nn.Linear(2, 2)
+            loader = DataLoader(
+                TensorDataset(torch.ones(4, 2), torch.zeros(4, dtype=torch.long)),
+                batch_size=2,
+            )
+            client = TorchFlowerClient(
+                model,
+                loaders=type("Loaders", (), {"train": loader, "test": loader})(),
+                config=config,
+                client_id="fedlama-1",
+            )
+            initial_parameters = get_model_parameters(model)
+
+            returned_parameters, num_examples, metrics = client.fit(
+                initial_parameters,
+                {
+                    "algorithm": "fedlama",
+                    "local_epochs": 1,
+                    "learning_rate": 0.1,
+                    "fedlama_sync_mask": json.dumps([True, False]),
+                    "fedlama_layer_intervals": json.dumps([1, 2]),
+                },
+            )
+
+            self.assertEqual(num_examples, 4)
+            self.assertEqual(len(returned_parameters), 1)
+            self.assertIn("train_loss", metrics)
+            self.assertIn("fedlama_layer_discrepancies", metrics)
+            self.assertTrue(
+                (Path(output_dir) / "fedlama_clients" / "fedlama-1" / "state.pt").exists()
+            )
+            self.assertEqual(parse_fedlama_sync_mask(json.dumps([True, False]), 2), [True, False])
+
+    def test_fedlama_discrepancy_helper_normalizes_by_interval(self) -> None:
+        server_parameters = [
+            np.asarray([0.0], dtype=np.float32),
+            np.asarray([0.0], dtype=np.float32),
+        ]
+        local_parameters = [
+            np.asarray([1.0], dtype=np.float32),
+            np.asarray([2.0], dtype=np.float32),
+        ]
+
+        discrepancies = compute_fedlama_layer_discrepancies(
+            server_parameters,
+            local_parameters,
+            [1, 2],
+        )
+
+        self.assertAlmostEqual(discrepancies[0], 1.0)
+        self.assertAlmostEqual(discrepancies[1], 2.0)
+
+    def test_fedlama_training_helper_updates_model(self) -> None:
+        model = torch.nn.Linear(2, 2)
+        loader = DataLoader(
+            TensorDataset(torch.ones(4, 2), torch.zeros(4, dtype=torch.long)),
+            batch_size=2,
+        )
+
+        metrics = train_fedlama_client(
+            model,
+            loader,
+            epochs=1,
+            learning_rate=0.1,
+            device="cpu",
+        )
+
+        self.assertIn("train_loss", metrics)
+        self.assertIn("train_accuracy", metrics)
 
     def test_scaffold_builder_creates_strategy(self) -> None:
         config = ExperimentConfig.from_run_config({"num-supernodes": 4})

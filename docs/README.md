@@ -63,6 +63,7 @@ Mỗi algorithm có một file riêng trong `docs/algorithms/` để dễ mở r
 | [algorithms/fedntd.md](algorithms/fedntd.md) | FedNTD not-true distillation từ global teacher snapshot trong local training. |
 | [algorithms/fedlc.md](algorithms/fedlc.md) | FedLC logits calibration dua tren local class counts cho label distribution skew. |
 | [algorithms/fedrs.md](algorithms/fedrs.md) | FedRS restricted softmax giam indirect pushing tren missing classes. |
+| [algorithms/fedlama.md](algorithms/fedlama.md) | FedLAMA layer-wise adaptive aggregation với sync mask theo round và client state cache. |
 | [algorithms/fedproto.md](algorithms/fedproto.md) | FedProto prototype aggregation với embedding regularization, giữ classifier/eval pipeline hiện tại. |
 | [algorithms/fedmeta.md](algorithms/fedmeta.md) | FedMeta federated MAML/Meta-SGD với support/query local meta-gradient payload. |
 | [algorithms/fedcurv.md](algorithms/fedcurv.md) | FedCurv curvature-aware local regularization với global `u/v` aggregates và diagonal Fisher payload. |

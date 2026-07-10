@@ -149,6 +149,8 @@ Unknown algorithm 'custom'. Available: ..., fedadam, fedavg, fedavgm, ...
 | `fedlc_tau` | Hệ số logits calibration margin trong FedLC |
 | `fedlc_epsilon` | Epsilon ổn định class count cho lớp missing trong FedLC |
 | `fedrs_alpha` | Hệ số scale restricted softmax cho missing classes trong FedRS |
+| `fedlama_base_interval` | Base sync interval cho từng layer trong FedLAMA |
+| `fedlama_interval_factor` | Hệ số phóng đại interval cho layer có discrepancy thấp trong FedLAMA |
 | `ditto_lambda` | Hệ số regularization kéo personalized model về global model trong Ditto |
 | `pfedme_lambda` | Hệ số proximal regularization giữa personalized model và reference model trong pFedMe |
 | `pfedme_beta` | Hệ số server-side mixing của pFedMe |

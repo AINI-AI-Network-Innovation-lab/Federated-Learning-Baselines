@@ -36,6 +36,14 @@ from fl_baselines.training.fedsam import train_fedsam_client
 from fl_baselines.training.fedspeed import train_fedspeed_client
 from fl_baselines.training.fedntd import train_fedntd_client
 from fl_baselines.training.fedlc import train_fedlc_client
+from fl_baselines.training.fedlama import (
+    compute_fedlama_layer_discrepancies,
+    merge_fedlama_parameters,
+    parse_fedlama_layer_intervals,
+    parse_fedlama_sync_mask,
+    select_fedlama_parameters,
+    train_fedlama_client,
+)
 from fl_baselines.training.fedrs import train_fedrs_client
 from fl_baselines.training.fedproto import train_fedproto_client
 from fl_baselines.training.fedmeta import train_fedmeta_client
@@ -139,6 +147,8 @@ class TorchFlowerClient(NumPyClient):
             return self._fit_fedlc(parameters, config)
         if algorithm == "fedrs":
             return self._fit_fedrs(parameters, config)
+        if algorithm == "fedlama":
+            return self._fit_fedlama(parameters, config)
         if algorithm == "apfl":
             return self._fit_apfl(parameters, config)
         if algorithm == "ditto":
@@ -853,6 +863,57 @@ class TorchFlowerClient(NumPyClient):
         )
         return get_model_parameters(self.model), len(self.loaders.train.dataset), metrics
 
+    def _fit_fedlama(
+        self,
+        parameters: list[np.ndarray],
+        config: dict[str, bool | bytes | float | int | str],
+    ) -> tuple[list[np.ndarray], int, dict[str, bool | bytes | float | int | str]]:
+        sync_mask = parse_fedlama_sync_mask(
+            config.get("fedlama_sync_mask"),
+            len(parameters),
+        )
+        layer_intervals = parse_fedlama_layer_intervals(
+            config.get("fedlama_layer_intervals"),
+            len(parameters),
+        )
+
+        cached_state = self._load_fedlama_state()
+        if cached_state is None:
+            set_model_parameters(self.model, parameters)
+        else:
+            self.model.load_state_dict(cached_state, strict=True)
+
+        merged_parameters = merge_fedlama_parameters(
+            parameters,
+            get_model_parameters(self.model),
+            sync_mask,
+        )
+        set_model_parameters(self.model, merged_parameters)
+
+        local_epochs = int(config.get("local_epochs", self.config.local_epochs))
+        learning_rate = float(config.get("learning_rate", self.config.learning_rate))
+        metrics = train_fedlama_client(
+            self.model,
+            self.loaders.train,
+            epochs=local_epochs,
+            learning_rate=learning_rate,
+            device=self.config.device,
+        )
+        discrepancies = compute_fedlama_layer_discrepancies(
+            parameters,
+            get_model_parameters(self.model),
+            layer_intervals,
+        )
+        metrics["fedlama_layer_discrepancies"] = json.dumps(discrepancies)
+        metrics["fedlama_sync_layer_count"] = sum(sync_mask)
+        metrics["fedlama_total_layer_count"] = len(sync_mask)
+        self._save_fedlama_state()
+        return (
+            select_fedlama_parameters(get_model_parameters(self.model), sync_mask),
+            len(self.loaders.train.dataset),
+            metrics,
+        )
+
     def _fit_fedproto(
         self,
         parameters: list[np.ndarray],
@@ -1183,6 +1244,25 @@ class TorchFlowerClient(NumPyClient):
             proximal_mu=proximal_mu,
         )
         return get_model_parameters(self.model), len(self.loaders.train.dataset), metrics
+
+    def _fedlama_state_path(self) -> Path:
+        return (
+            Path(self.config.output_dir)
+            / "fedlama_clients"
+            / self.client_id
+            / "state.pt"
+        )
+
+    def _load_fedlama_state(self) -> OrderedDict[str, torch.Tensor] | None:
+        state_path = self._fedlama_state_path()
+        if not state_path.exists():
+            return None
+        return torch.load(state_path, map_location="cpu", weights_only=True)
+
+    def _save_fedlama_state(self) -> None:
+        state_path = self._fedlama_state_path()
+        state_path.parent.mkdir(parents=True, exist_ok=True)
+        torch.save(self.model.state_dict(), state_path)
 
     def _feddyn_state_path(self) -> Path:
         return (
@@ -1653,6 +1733,12 @@ class TorchFlowerClient(NumPyClient):
                 set_model_parameters(self.model, parameters)
             else:
                 self.model.load_state_dict(state["model"], strict=True)
+        elif algorithm == "fedlama":
+            state = self._load_fedlama_state()
+            if state is None:
+                set_model_parameters(self.model, parameters)
+            else:
+                self.model.load_state_dict(state, strict=True)
         elif algorithm == "apfl":
             set_model_parameters(self.model, parameters)
             global_model = copy.deepcopy(self.model)

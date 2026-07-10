@@ -30,6 +30,7 @@ Mỗi algorithm có một file riêng để dễ mở rộng khi thêm baseline 
 | FedNTD | [fedntd.md](fedntd.md) |
 | FedLC | [fedlc.md](fedlc.md) |
 | FedRS | [fedrs.md](fedrs.md) |
+| FedLAMA | [fedlama.md](fedlama.md) |
 | FedProto | [fedproto.md](fedproto.md) |
 | FedMeta | [fedmeta.md](fedmeta.md) |
 | FedCurv | [fedcurv.md](fedcurv.md) |

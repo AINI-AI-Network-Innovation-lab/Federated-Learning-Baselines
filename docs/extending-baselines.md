@@ -223,6 +223,7 @@ Algorithm builder nên đảm bảo:
 - nếu thuật toán chỉ doi server aggregation dua tren mot scalar metric moi client, nhu FedAAW, uu tien giu local objective mac dinh, tinh metric trong `training/`, va de strategy xu ly tracker/weighting trong `algorithms/`
 - nếu thuật toán cần client state xuyên round và client payload khác local model thô, như FedSpeed, hãy persist state theo `client_id` trong `output-dir` và trả payload mới thay vì sửa app entrypoints
 - nếu thuật toán cần client condensed payload va server replay tren memory tich luy, nhu FedVCK, uu tien tach helper local/server trong `training/`, giu payload order co dinh, va de strategy tu quan ly memory cap thay vi day logic vao app entrypoints
+- nếu thuật toán cần layer-wise sync mask và client cache xuyên round như FedLAMA, hãy để strategy sinh mask trong `configure_fit`, cho client persist full local state theo `client_id`, và chỉ trả tensor cho các layer đang tới kỳ sync để giữ contract round-based gọn nhất
 
 ## Cách Thêm Một Baseline Hoàn Chỉnh
 

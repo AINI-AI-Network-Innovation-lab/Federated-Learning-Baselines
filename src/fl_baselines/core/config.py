@@ -160,6 +160,8 @@ class ExperimentConfig:
     fedlc_tau: float = 0.5
     fedlc_epsilon: float = 1e-8
     fedrs_alpha: float = 0.5
+    fedlama_base_interval: int = 1
+    fedlama_interval_factor: float = 2.0
     ditto_lambda: float = 0.1
     pfedme_lambda: float = 15.0
     pfedme_beta: float = 1.0
@@ -733,6 +735,16 @@ class ExperimentConfig:
                 "fedrs-alpha",
                 cls.fedrs_alpha,
             ),
+            fedlama_base_interval=_as_int(
+                run_config,
+                "fedlama-base-interval",
+                cls.fedlama_base_interval,
+            ),
+            fedlama_interval_factor=_as_float(
+                run_config,
+                "fedlama-interval-factor",
+                cls.fedlama_interval_factor,
+            ),
             ditto_lambda=_as_float(
                 run_config,
                 "ditto-lambda",
@@ -1060,6 +1072,10 @@ class ExperimentConfig:
             raise ValueError("fedlc-epsilon must be positive")
         if not 0 <= self.fedrs_alpha <= 1:
             raise ValueError("fedrs-alpha must be in [0, 1]")
+        if self.fedlama_base_interval <= 0:
+            raise ValueError("fedlama-base-interval must be positive")
+        if self.fedlama_interval_factor < 1:
+            raise ValueError("fedlama-interval-factor must be at least 1")
         if self.ditto_lambda < 0:
             raise ValueError("ditto-lambda must be non-negative")
         if self.pfedme_lambda <= 0:

@@ -187,6 +187,10 @@ fedlc-epsilon = 1e-8
 # FedRS
 fedrs-alpha = 0.5
 
+# FedLAMA
+fedlama-base-interval = 1
+fedlama-interval-factor = 2.0
+
 # Ditto
 ditto-lambda = 0.1
 
@@ -423,6 +427,12 @@ flwr run . --run-config 'algorithm="fedlc" fedlc-tau=0.5' --stream
 
 ```bash
 flwr run . --run-config 'algorithm="fedrs" fedrs-alpha=0.5' --stream
+```
+
+## Chạy FedLAMA
+
+```bash
+flwr run . --run-config 'algorithm="fedlama" fedlama-base-interval=1 fedlama-interval-factor=2.0' --stream
 ```
 
 ## Chạy pFedMe
