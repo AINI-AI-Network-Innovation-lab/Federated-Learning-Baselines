@@ -180,6 +180,7 @@ Các algorithm hiện có:
 - `fedntd`
 - `fedlc`
 - `fedrs`
+- `fedsikd`
 - `fedproto`
 - `fedmeta`
 - `fedcurv`

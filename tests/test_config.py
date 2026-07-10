@@ -138,6 +138,10 @@ class ExperimentConfigTest(unittest.TestCase):
                 "fedlc-tau": 0.5,
                 "fedlc-epsilon": 1e-4,
                 "fedrs-alpha": 0.5,
+                "fedsikd-num-clusters": 3,
+                "fedsikd-max-clusters": 6,
+                "fedsikd-kd-alpha": 0.7,
+                "fedsikd-kd-temperature": 2.5,
                 "fedlama-base-interval": 1,
                 "fedlama-interval-factor": 2.0,
                 "ditto-lambda": 0.3,
@@ -281,6 +285,10 @@ class ExperimentConfigTest(unittest.TestCase):
         self.assertEqual(config.fedlc_tau, 0.5)
         self.assertEqual(config.fedlc_epsilon, 1e-4)
         self.assertEqual(config.fedrs_alpha, 0.5)
+        self.assertEqual(config.fedsikd_num_clusters, 3)
+        self.assertEqual(config.fedsikd_max_clusters, 6)
+        self.assertEqual(config.fedsikd_kd_alpha, 0.7)
+        self.assertEqual(config.fedsikd_kd_temperature, 2.5)
         self.assertEqual(config.fedlama_base_interval, 1)
         self.assertEqual(config.fedlama_interval_factor, 2.0)
         self.assertEqual(config.ditto_lambda, 0.3)
@@ -596,6 +604,18 @@ class ExperimentConfigTest(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "fedlc-epsilon must be positive"):
             ExperimentConfig.from_run_config({"fedlc-epsilon": 0.0})
+
+        with self.assertRaisesRegex(ValueError, "fedsikd-num-clusters must be non-negative"):
+            ExperimentConfig.from_run_config({"fedsikd-num-clusters": -1})
+
+        with self.assertRaisesRegex(ValueError, "fedsikd-max-clusters must be positive"):
+            ExperimentConfig.from_run_config({"fedsikd-max-clusters": 0})
+
+        with self.assertRaisesRegex(ValueError, "fedsikd-kd-alpha must be in"):
+            ExperimentConfig.from_run_config({"fedsikd-kd-alpha": -0.1})
+
+        with self.assertRaisesRegex(ValueError, "fedsikd-kd-temperature must be positive"):
+            ExperimentConfig.from_run_config({"fedsikd-kd-temperature": 0.0})
 
         with self.assertRaisesRegex(ValueError, "fedrs-alpha must be in"):
             ExperimentConfig.from_run_config({"fedrs-alpha": -0.1})

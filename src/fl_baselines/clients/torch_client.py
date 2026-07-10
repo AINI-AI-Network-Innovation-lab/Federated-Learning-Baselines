@@ -36,6 +36,7 @@ from fl_baselines.training.fedsam import train_fedsam_client
 from fl_baselines.training.fedspeed import train_fedspeed_client
 from fl_baselines.training.fedntd import train_fedntd_client
 from fl_baselines.training.fedlc import train_fedlc_client
+from fl_baselines.training.fedsikd import train_fedsikd_client
 from fl_baselines.training.fedlama import (
     compute_fedlama_layer_discrepancies,
     merge_fedlama_parameters,
@@ -144,6 +145,8 @@ class TorchFlowerClient(NumPyClient):
             return self._fit_fedntd(parameters, config)
         if algorithm == "fedlc":
             return self._fit_fedlc(parameters, config)
+        if algorithm == "fedsikd":
+            return self._fit_fedsikd(parameters, config)
         if algorithm == "fedrs":
             return self._fit_fedrs(parameters, config)
         if algorithm == "fedlama":
@@ -838,6 +841,42 @@ class TorchFlowerClient(NumPyClient):
             num_classes=num_classes,
             fedlc_tau=fedlc_tau,
             fedlc_epsilon=fedlc_epsilon,
+        )
+        return get_model_parameters(self.model), len(self.loaders.train.dataset), metrics
+
+    def _fit_fedsikd(
+        self,
+        parameters: list[np.ndarray],
+        config: dict[str, bool | bytes | float | int | str],
+    ) -> tuple[list[np.ndarray], int, dict[str, bool | bytes | float | int | str]]:
+        model_parameter_count = len(get_model_parameters(self.model))
+        if len(parameters) != model_parameter_count * 2:
+            raise ValueError("FedSiKD fit requires student and teacher parameters")
+
+        student_parameters = parameters[:model_parameter_count]
+        teacher_parameters = parameters[model_parameter_count:]
+        set_model_parameters(self.model, student_parameters)
+        teacher_model = copy.deepcopy(self.model)
+        set_model_parameters(teacher_model, teacher_parameters)
+
+        local_epochs = int(config.get("local_epochs", self.config.local_epochs))
+        learning_rate = float(config.get("learning_rate", self.config.learning_rate))
+        fedsikd_kd_alpha = float(config.get("fedsikd_kd_alpha", self.config.fedsikd_kd_alpha))
+        fedsikd_kd_temperature = float(
+            config.get(
+                "fedsikd_kd_temperature",
+                self.config.fedsikd_kd_temperature,
+            )
+        )
+        metrics = train_fedsikd_client(
+            self.model,
+            teacher_model,
+            self.loaders.train,
+            epochs=local_epochs,
+            learning_rate=learning_rate,
+            device=self.config.device,
+            fedsikd_kd_alpha=fedsikd_kd_alpha,
+            fedsikd_kd_temperature=fedsikd_kd_temperature,
         )
         return get_model_parameters(self.model), len(self.loaders.train.dataset), metrics
 

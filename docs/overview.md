@@ -42,6 +42,7 @@ Phiên bản hiện tại có baseline đầu tiên:
 | FedNTD MNIST CNN | FedNTD | MNIST | CNN nhỏ cho ảnh 28x28 | IID, Dirichlet |
 | FedLC MNIST CNN | FedLC | MNIST | CNN nhỏ cho ảnh 28x28 | IID, Dirichlet |
 | FedRS MNIST CNN | FedRS | MNIST | CNN nhỏ cho ảnh 28x28 | IID, Dirichlet |
+| FedSiKD MNIST CNN | FedSiKD | MNIST | CNN nhỏ cho ảnh 28x28 | IID, Dirichlet |
 | FedLAMA MNIST CNN | FedLAMA | MNIST | CNN nhỏ cho ảnh 28x28 | IID, Dirichlet |
 | FedProto MNIST CNN | FedProto | MNIST | CNN nhỏ cho ảnh 28x28 | IID, Dirichlet |
 | FedMeta MNIST CNN | FedMeta | MNIST | CNN nhỏ cho ảnh 28x28 | IID, Dirichlet |

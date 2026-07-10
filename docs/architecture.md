@@ -149,6 +149,10 @@ Unknown algorithm 'custom'. Available: ..., fedadam, fedavg, fedavgm, ...
 | `fedlc_tau` | Hệ số logits calibration margin trong FedLC |
 | `fedlc_epsilon` | Epsilon ổn định class count cho lớp missing trong FedLC |
 | `fedrs_alpha` | Hệ số scale restricted softmax cho missing classes trong FedRS |
+| `fedsikd_num_clusters` | Số cluster cố định cho FedSiKD; giá trị `0` bật auto-select theo silhouette/CH/DB |
+| `fedsikd_max_clusters` | Giới hạn cluster tối đa khi FedSiKD auto-select |
+| `fedsikd_kd_alpha` | Hệ số trộn distillation loss với cross-entropy trong FedSiKD |
+| `fedsikd_kd_temperature` | Temperature cho soft distillation giữa student và teacher trong FedSiKD |
 | `fedlama_base_interval` | Base sync interval cho từng layer trong FedLAMA |
 | `fedlama_interval_factor` | Hệ số phóng đại interval cho layer có discrepancy thấp trong FedLAMA |
 | `ditto_lambda` | Hệ số regularization kéo personalized model về global model trong Ditto |

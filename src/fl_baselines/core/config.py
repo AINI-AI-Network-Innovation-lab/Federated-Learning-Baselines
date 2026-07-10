@@ -160,6 +160,10 @@ class ExperimentConfig:
     fedlc_tau: float = 0.5
     fedlc_epsilon: float = 1e-8
     fedrs_alpha: float = 0.5
+    fedsikd_num_clusters: int = 0
+    fedsikd_max_clusters: int = 5
+    fedsikd_kd_alpha: float = 0.5
+    fedsikd_kd_temperature: float = 1.0
     fedlama_base_interval: int = 1
     fedlama_interval_factor: float = 2.0
     ditto_lambda: float = 0.1
@@ -735,6 +739,26 @@ class ExperimentConfig:
                 "fedrs-alpha",
                 cls.fedrs_alpha,
             ),
+            fedsikd_num_clusters=_as_int(
+                run_config,
+                "fedsikd-num-clusters",
+                cls.fedsikd_num_clusters,
+            ),
+            fedsikd_max_clusters=_as_int(
+                run_config,
+                "fedsikd-max-clusters",
+                cls.fedsikd_max_clusters,
+            ),
+            fedsikd_kd_alpha=_as_float(
+                run_config,
+                "fedsikd-kd-alpha",
+                cls.fedsikd_kd_alpha,
+            ),
+            fedsikd_kd_temperature=_as_float(
+                run_config,
+                "fedsikd-kd-temperature",
+                cls.fedsikd_kd_temperature,
+            ),
             fedlama_base_interval=_as_int(
                 run_config,
                 "fedlama-base-interval",
@@ -1072,6 +1096,14 @@ class ExperimentConfig:
             raise ValueError("fedlc-epsilon must be positive")
         if not 0 <= self.fedrs_alpha <= 1:
             raise ValueError("fedrs-alpha must be in [0, 1]")
+        if self.fedsikd_num_clusters < 0:
+            raise ValueError("fedsikd-num-clusters must be non-negative")
+        if self.fedsikd_max_clusters <= 0:
+            raise ValueError("fedsikd-max-clusters must be positive")
+        if not 0 <= self.fedsikd_kd_alpha <= 1:
+            raise ValueError("fedsikd-kd-alpha must be in [0, 1]")
+        if self.fedsikd_kd_temperature <= 0:
+            raise ValueError("fedsikd-kd-temperature must be positive")
         if self.fedlama_base_interval <= 0:
             raise ValueError("fedlama-base-interval must be positive")
         if self.fedlama_interval_factor < 1:

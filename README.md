@@ -50,6 +50,7 @@ Pipeline evaluation hiện dùng hai mức rõ ràng:
 | FedNTD | 2022 | [Preservation of the Global Knowledge by Not-True Distillation in Federated Learning](https://arxiv.org/abs/2106.03097) |
 | FedLC | 2022 | [Federated Learning with Label Distribution Skew via Logits Calibration](https://arxiv.org/abs/2209.00189) |
 | FedRS | 2021 | [FedRS: Federated Learning with Restricted Softmax for Label Distribution Non-IID Data](https://doi.org/10.1145/3447548.3467254) |
+| FedSiKD | 2024 | [FedSiKD: Clients Similarity and Knowledge Distillation: Addressing Non-i.i.d. and Constraints in Federated Learning](https://arxiv.org/abs/2402.09095) |
 | FedLAMA | 2022 | [Layer-wise Adaptive Model Aggregation for Scalable Federated Learning](https://arxiv.org/abs/2110.10302) |
 | FedProto | 2022 | [FedProto: Federated Prototype Learning across Heterogeneous Clients](https://arxiv.org/abs/2105.00243) |
 | FedCurv | 2019 | [Overcoming Forgetting in Federated Learning on Non-IID Data](https://arxiv.org/abs/1910.07796) |

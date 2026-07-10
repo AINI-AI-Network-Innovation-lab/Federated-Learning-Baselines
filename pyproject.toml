@@ -52,7 +52,7 @@ fraction-train = 1.0
 fraction-evaluate = 1.0
 client-test-fraction = 0.2
 
-# Client local training, shared by FedAvg/FedAvgM/FedAdp/FedExP/FedNova/FedPer/FedRep/FedProx/SCAFFOLD/MOON
+# Client local training, shared by FedAvg/FedAvgM/FedAdp/FedExP/FedNova/FedPer/FedRep/FedProx/SCAFFOLD/MOON/FedSiKD
 local-epochs = 1
 batch-size = 32
 learning-rate = 0.01
@@ -222,6 +222,12 @@ fedlc-epsilon = 1e-8
 
 # FedRS
 fedrs-alpha = 0.5
+
+# FedSiKD
+fedsikd-num-clusters = 0
+fedsikd-max-clusters = 5
+fedsikd-kd-alpha = 0.5
+fedsikd-kd-temperature = 1.0
 
 # FedLAMA
 fedlama-base-interval = 1

@@ -44,6 +44,11 @@ from fl_baselines.algorithms.fedspeed import FedSpeedBuilder
 from fl_baselines.algorithms.fedntd import FedNTDBuilder
 from fl_baselines.algorithms.fedlc import FedLCBuilder
 from fl_baselines.algorithms.fedrs import FedRSBuilder
+from fl_baselines.algorithms.fedsikd import (
+    FedSiKDBuilder,
+    FedSiKDStrategy,
+    cluster_fedsikd_clients,
+)
 from fl_baselines.algorithms.fedproto import FedProtoBuilder, FedProtoStrategy
 from fl_baselines.algorithms.pfedme import PFedMeBuilder, PFedMeStrategy
 from fl_baselines.algorithms.fedper import FedPerBuilder, FedPerStrategy
@@ -89,6 +94,7 @@ from fl_baselines.training.fedlc import (
     local_class_counts,
     train_fedlc_client,
 )
+from fl_baselines.training.fedsikd import compute_fedsikd_statistics
 from fl_baselines.training.fedrs import (
     fedrs_loss,
     observed_class_mask,
@@ -1624,6 +1630,138 @@ class ModelAndAlgorithmTest(unittest.TestCase):
                 model = model_builder.build_model(config)
                 strategy = FedRSBuilder().build_strategy(config, model, evaluate_fn=None)
                 self.assertEqual(strategy.on_fit_config_fn(1)["algorithm"], "fedrs")
+
+    def test_fedsikd_statistics_and_clustering_helpers(self) -> None:
+        loader = DataLoader(
+            TensorDataset(
+                torch.tensor([[0.0], [1.0], [2.0]], dtype=torch.float32),
+                torch.zeros(3, dtype=torch.long),
+            ),
+            batch_size=3,
+        )
+        mean, std, skewness = compute_fedsikd_statistics(loader)
+
+        self.assertAlmostEqual(mean, 1.0, places=6)
+        self.assertAlmostEqual(std, (2.0 / 3.0) ** 0.5, places=6)
+        self.assertAlmostEqual(skewness, 0.0, places=6)
+
+        clusters = cluster_fedsikd_clients(
+            {
+                "a": (0.0, 0.0, 0.0),
+                "b": (0.1, 0.0, 0.0),
+                "c": (10.0, 10.0, 10.0),
+                "d": (10.1, 10.0, 10.0),
+            },
+            num_clusters=2,
+            max_clusters=4,
+        )
+        self.assertEqual(clusters["a"], clusters["b"])
+        self.assertEqual(clusters["c"], clusters["d"])
+        self.assertNotEqual(clusters["a"], clusters["c"])
+
+    def test_fedsikd_builder_creates_strategy(self) -> None:
+        config = ExperimentConfig.from_run_config(
+            {
+                "num-supernodes": 4,
+                "fedsikd-num-clusters": 2,
+                "fedsikd-max-clusters": 4,
+                "fedsikd-kd-alpha": 0.7,
+                "fedsikd-kd-temperature": 2.0,
+            }
+        )
+        model = MnistCnnBuilder().build_model(config)
+
+        strategy = FedSiKDBuilder().build_strategy(config, model, evaluate_fn=None)
+        fit_config = strategy.on_fit_config_fn(1)
+
+        self.assertIsInstance(strategy, FedSiKDStrategy)
+        self.assertEqual(strategy.min_fit_clients, 4)
+        self.assertEqual(fit_config["algorithm"], "fedsikd")
+        self.assertEqual(fit_config["fedsikd_kd_alpha"], 0.7)
+        self.assertEqual(fit_config["fedsikd_kd_temperature"], 2.0)
+        self.assertEqual(fit_config["fedsikd_num_clusters"], 2)
+
+    def test_fedsikd_builder_supports_current_models(self) -> None:
+        cases = [
+            (MnistCnnBuilder(), {}),
+            (LeNetBuilder(), {}),
+            (
+                ResNet9Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                ResNet18Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                ResNet34Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                InceptionBuilder(),
+                {"input-channels": 3, "input-height": 75, "input-width": 75},
+            ),
+        ]
+
+        for model_builder, overrides in cases:
+            with self.subTest(model=model_builder.name):
+                config = ExperimentConfig.from_run_config(
+                    {
+                        "algorithm": "fedsikd",
+                        "num-supernodes": 2,
+                        "fedsikd-num-clusters": 2,
+                        "fedsikd-max-clusters": 4,
+                        **overrides,
+                    }
+                )
+                model = model_builder.build_model(config)
+                strategy = FedSiKDBuilder().build_strategy(config, model, evaluate_fn=None)
+                self.assertEqual(strategy.on_fit_config_fn(1)["algorithm"], "fedsikd")
+
+    def test_fedsikd_client_routes_to_distillation_helper(self) -> None:
+        with tempfile.TemporaryDirectory() as output_dir:
+            config = ExperimentConfig.from_run_config(
+                {
+                    "algorithm": "fedsikd",
+                    "local-epochs": 1,
+                    "learning-rate": 0.1,
+                    "fedsikd-kd-alpha": 0.5,
+                    "fedsikd-kd-temperature": 1.5,
+                    "output-dir": output_dir,
+                }
+            )
+            model = torch.nn.Linear(2, 2)
+            teacher_model = torch.nn.Linear(2, 2)
+            with torch.no_grad():
+                teacher_model.weight.fill_(1.0)
+                teacher_model.bias.fill_(0.5)
+
+            loader = DataLoader(
+                TensorDataset(torch.ones(4, 2), torch.zeros(4, dtype=torch.long)),
+                batch_size=2,
+            )
+            client = TorchFlowerClient(
+                model,
+                loaders=type("Loaders", (), {"train": loader, "test": loader})(),
+                config=config,
+                client_id="fedsikd-1",
+            )
+
+            returned_parameters, num_examples, metrics = client.fit(
+                get_model_parameters(model) + get_model_parameters(teacher_model),
+                {
+                    "algorithm": "fedsikd",
+                    "local_epochs": 1,
+                    "learning_rate": 0.1,
+                    "fedsikd_kd_alpha": 0.5,
+                    "fedsikd_kd_temperature": 1.5,
+                },
+            )
+
+            self.assertEqual(num_examples, 4)
+            self.assertEqual(len(returned_parameters), len(get_model_parameters(model)))
+            self.assertIn("fedsikd_mean", metrics)
+            self.assertIn("fedsikd_kd_loss", metrics)
 
     def test_ditto_builder_creates_strategy(self) -> None:
         config = ExperimentConfig.from_run_config(
