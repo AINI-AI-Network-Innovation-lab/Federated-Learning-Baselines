@@ -158,6 +158,9 @@ Các algorithm hiện có:
 
 - `fedavg`
 - `fedavgm`
+- `fedadagrad`
+- `fedadam`
+- `fedyogi`
 - `fedadp`
 - `gamf`
 - `fedma`
@@ -175,7 +178,14 @@ Các algorithm hiện có:
 - `fedexp`
 - `fedsam`
 - `fedntd`
+- `fedlc`
+- `fedrs`
 - `fedproto`
+- `fedmeta`
+- `fedcurv`
+- `fedmmd`
+- `fednp`
+- `apfl`
 - `fednova`
 - `pfedme`
 - `fedper`
@@ -203,6 +213,7 @@ Algorithm builder nên đảm bảo:
 - nếu thuật toán regularize tren embedding space nhu FedProto, uu tien them helper trich feature rieng thay vi thay doi `forward()` contract cua toan bo model
 - nếu thuật toán regularize tren embedding space nhưng vẫn trả raw local model như FedDecorr, hãy giữ server strategy kiểu FedAvg và cô lập regularizer trong `training/`
 - nếu thuật toán chỉ đổi local objective nhưng không cần client state xuyên round, như FedNTD, vẫn nên tách helper riêng trong `training/` và route bằng nhánh `algorithm` trong `TorchFlowerClient`
+- nếu thuật toán đổi local cross-entropy dua tren thong ke nhan cua tung client nhu FedLC, hay tinh thong ke do tu `train_loader` trong `training/` va giu server strategy FedAvg-compatible
 - nếu thuật toán chỉ đổi local optimizer nhưng vẫn aggregate như FedAvg, như FedSAM, uu tien them helper local training rieng va giu server strategy don gian
 - nếu thuật toán can aggregate them mot payload representation-level state nhu feature mask trong FedGEN, uu tien dong goi payload do cung model parameters va route ro rang trong `TorchFlowerClient`
 - nếu thuật toán can layer-wise matching va client-side freezing theo stage nhu FedMA, uu tien de strategy phat `fedma_stage` ro rang qua fit-config va de helper local training nhan danh sach prefix can freeze thay vi hard-code trong app entrypoints

@@ -27,13 +27,18 @@ Pipeline evaluation hiện dùng hai mức rõ ràng:
 | Baseline | Year | Paper |
 | --- | --- | --- |
 | FedAvg | 2017 | [Communication-Efficient Learning of Deep Networks from Decentralized Data](https://arxiv.org/abs/1602.05629) |
+| FedMeta | 2018 | [Federated Meta-Learning with Fast Convergence and Efficient Communication](https://arxiv.org/abs/1802.07876) |
 | FedPer | 2019 | [Federated Learning with Personalization Layers](https://arxiv.org/abs/1912.00818) |
 | FedNova | 2020 | [Tackling the Objective Inconsistency Problem in Heterogeneous Federated Optimization](https://arxiv.org/abs/2007.07481) |
 | FedProx | 2020 | [Federated Optimization in Heterogeneous Networks](https://arxiv.org/abs/1812.06127) |
 | pFedMe | 2020 | [Personalized Federated Learning with Moreau Envelopes](https://arxiv.org/abs/2006.08848) |
+| APFL | 2020 | [Adaptive Personalized Federated Learning](https://arxiv.org/abs/2003.13461) |
 | SCAFFOLD | 2020 | [SCAFFOLD: Stochastic Controlled Averaging for Federated Learning](https://arxiv.org/abs/1910.06378) |
 | FedAdp | 2021 | [Fast-Convergent Federated Learning with Adaptive Weighting](https://arxiv.org/abs/2012.00661) |
 | FedAvgM | 2021 | [Adaptive Federated Optimization](https://arxiv.org/abs/2003.00295) |
+| FedAdagrad | 2021 | [Adaptive Federated Optimization](https://arxiv.org/abs/2003.00295) |
+| FedAdam | 2021 | [Adaptive Federated Optimization](https://arxiv.org/abs/2003.00295) |
+| FedYogi | 2021 | [Adaptive Federated Optimization](https://arxiv.org/abs/2003.00295) |
 | Ditto | 2021 | [Ditto: Fair and Robust Federated Learning Through Personalization](https://arxiv.org/abs/2012.04221) |
 | FedDyn | 2021 | [Federated Learning Based on Dynamic Regularization](https://arxiv.org/abs/2111.04263) |
 | FedAMP | 2021 | [Personalized Cross-Silo Federated Learning on Non-IID Data](https://arxiv.org/abs/2007.03797) |
@@ -43,7 +48,12 @@ Pipeline evaluation hiện dùng hai mức rõ ràng:
 | FedDecorr | 2022 | [Towards Understanding and Mitigating Dimensional Collapse in Heterogeneous Federated Learning](https://arxiv.org/abs/2210.00226) |
 | FedSAM | 2022 | [Generalized Federated Learning via Sharpness Aware Minimization](https://arxiv.org/abs/2206.02618) |
 | FedNTD | 2022 | [Preservation of the Global Knowledge by Not-True Distillation in Federated Learning](https://arxiv.org/abs/2106.03097) |
+| FedLC | 2022 | [Federated Learning with Label Distribution Skew via Logits Calibration](https://arxiv.org/abs/2209.00189) |
+| FedRS | 2021 | [FedRS: Federated Learning with Restricted Softmax for Label Distribution Non-IID Data](https://doi.org/10.1145/3447548.3467254) |
 | FedProto | 2022 | [FedProto: Federated Prototype Learning across Heterogeneous Clients](https://arxiv.org/abs/2105.00243) |
+| FedCurv | 2019 | [Overcoming Forgetting in Federated Learning on Non-IID Data](https://arxiv.org/abs/1910.07796) |
+| FedMMD | 2024 | [FedMMD: A Federated weighting algorithm considering Non-IID and Local Model Deviation](https://doi.org/10.1016/j.eswa.2023.121463) |
+| FedNP | 2023 | [FedNP: Towards Non-IID Federated Learning via Federated Neural Propagation](https://ojs.aaai.org/index.php/AAAI/article/view/26358) |
 | FedDRL | 2022 | [FedDRL: Deep Reinforcement Learning-based Adaptive Aggregation for Non-IID Data in Federated Learning](https://arxiv.org/abs/2208.02442) |
 | FedALA | 2023 | [FedALA: Adaptive Local Aggregation for Personalized Federated Learning](https://arxiv.org/abs/2212.01197) |
 | FedExP | 2023 | [FedExP: Speeding up Federated Averaging via Extrapolation](https://arxiv.org/abs/2301.09604) |
@@ -58,6 +68,8 @@ Pipeline evaluation hiện dùng hai mức rõ ràng:
 | FedAAW | 2025 | [Federated Learning With Adaptive Aggregation Weights for Non-IID Data in Edge Networks](https://doi.org/10.1109/TCCN.2025.3534248) |
 | FedVCK | 2025 | [FedVCK: Non-IID Robust and Communication-Efficient Federated Learning via Valuable Condensed Knowledge for Medical Image Analysis](https://arxiv.org/abs/2412.18557) |
 | FedLAA | 2026 | [Accelerating model convergence in federated learning with layer-wise adaptive weight aggregation](https://doi.org/10.1016/j.asoc.2026.115676) |
+
+Ghi chú: registry hiện hỗ trợ thêm alias `feddrrl` trỏ tới baseline canonical `feddrl` (`FedDRL`) để tương thích cấu hình cũ.
 
 ## Datasets
 

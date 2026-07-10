@@ -59,6 +59,25 @@ learning-rate = 0.01
 server-learning-rate = 1.0
 server-momentum = 0.9
 
+# FedAdagrad
+fedadagrad-eta = 0.1
+fedadagrad-eta-l = 0.1
+fedadagrad-tau = 1e-9
+
+# FedAdam
+fedadam-eta = 0.1
+fedadam-eta-l = 0.1
+fedadam-beta-1 = 0.9
+fedadam-beta-2 = 0.99
+fedadam-tau = 1e-9
+
+# FedYogi
+fedyogi-eta = 0.01
+fedyogi-eta-l = 0.0316
+fedyogi-beta-1 = 0.9
+fedyogi-beta-2 = 0.99
+fedyogi-tau = 0.001
+
 # FedAdp
 fedadp-alpha = 5.0
 
@@ -126,9 +145,47 @@ fedlaw-gamma-init = 1.0
 # FedProto
 fedproto-lambda = 1.0
 
+# FedMeta
+fedmeta-method = "maml"
+fedmeta-inner-learning-rate = 0.01
+fedmeta-outer-learning-rate = 0.001
+fedmeta-support-fraction = 0.5
+fedmeta-inner-steps = 1
+fedmeta-first-order = true
+fedmeta-alpha-init = 0.01
+
+# FedNP
+fednp-lambda = 0.1
+fednp-prior-variance = 1.0
+fednp-stability-eps = 1e-6
+
+# FedCurv
+fedcurv-lambda = 0.1
+fedcurv-fisher-batches = 1
+fedcurv-stability-eps = 1e-6
+
+# FedMMD
+fedmmd-sigma = 1.0
+fedmmd-sknq-threshold = 0.5
+fedmmd-min-clients = 2
+fedmmd-entropy-eps = 1e-8
+
+# APFL
+apfl-alpha = 0.5
+apfl-personal-learning-rate = 0.01
+apfl-adaptive-alpha = true
+apfl-alpha-learning-rate = 0.01
+
 # FedNTD
 fedntd-beta = 1.0
 fedntd-temperature = 1.0
+
+# FedLC
+fedlc-tau = 0.5
+fedlc-epsilon = 1e-8
+
+# FedRS
+fedrs-alpha = 0.5
 
 # Ditto
 ditto-lambda = 0.1
@@ -204,6 +261,24 @@ flwr run . --run-config 'algorithm="fedprox" proximal-mu=0.1' --stream
 
 ```bash
 flwr run . --run-config 'algorithm="fedavgm" server-learning-rate=1.0 server-momentum=0.9' --stream
+```
+
+## Chạy FedAdagrad
+
+```bash
+flwr run . --run-config 'algorithm="fedadagrad" fedadagrad-eta=0.1 fedadagrad-eta-l=0.1 fedadagrad-tau=1e-9' --stream
+```
+
+## Chạy FedAdam
+
+```bash
+flwr run . --run-config 'algorithm="fedadam" fedadam-eta=0.1 fedadam-eta-l=0.1 fedadam-beta-1=0.9 fedadam-beta-2=0.99 fedadam-tau=1e-9' --stream
+```
+
+## Chạy FedYogi
+
+```bash
+flwr run . --run-config 'algorithm="fedyogi" fedyogi-eta=0.01 fedyogi-eta-l=0.0316 fedyogi-beta-1=0.9 fedyogi-beta-2=0.99 fedyogi-tau=0.001' --stream
 ```
 
 ## Chạy FedNova
@@ -302,10 +377,52 @@ flwr run . --run-config 'algorithm="fedsam" fedsam-rho=0.5' --stream
 flwr run . --run-config 'algorithm="fedproto" fedproto-lambda=1.0' --stream
 ```
 
+## Chạy FedMeta
+
+```bash
+flwr run . --run-config 'algorithm="fedmeta" fedmeta-method="maml"' --stream
+```
+
+## Chạy FedNP
+
+```bash
+flwr run . --run-config 'algorithm="fednp" fednp-lambda=0.1' --stream
+```
+
+## Chạy FedCurv
+
+```bash
+flwr run . --run-config 'algorithm="fedcurv" fedcurv-lambda=0.1 fedcurv-fisher-batches=1' --stream
+```
+
+## Chạy FedMMD
+
+```bash
+flwr run . --run-config 'algorithm="fedmmd" fedmmd-sigma=1.0 fedmmd-sknq-threshold=0.5' --stream
+```
+
+## Chạy APFL
+
+```bash
+flwr run . --run-config 'algorithm="apfl" apfl-alpha=0.5 apfl-personal-learning-rate=0.01' --stream
+```
+
 ## Chạy FedNTD
 
 ```bash
 flwr run . --run-config 'algorithm="fedntd" fedntd-beta=1.0 fedntd-temperature=1.0' --stream
+```
+
+## Chạy FedLC
+
+```bash
+flwr run . --run-config 'algorithm="fedlc" fedlc-tau=0.5' --stream
+```
+
+## Chạy FedRS
+
+```bash
+flwr run . --run-config 'algorithm="fedrs" fedrs-alpha=0.5' --stream
 ```
 
 ## Chạy pFedMe

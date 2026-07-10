@@ -6,6 +6,9 @@ Mỗi algorithm có một file riêng để dễ mở rộng khi thêm baseline 
 | --- | --- |
 | FedAvg | [fedavg.md](fedavg.md) |
 | FedAvgM | [fedavgm.md](fedavgm.md) |
+| FedAdagrad | [fedadagrad.md](fedadagrad.md) |
+| FedAdam | [fedadam.md](fedadam.md) |
+| FedYogi | [fedyogi.md](fedyogi.md) |
 | FedAdp | [fedadp.md](fedadp.md) |
 | GAMF | [gamf.md](gamf.md) |
 | FedMA | [fedma.md](fedma.md) |
@@ -25,7 +28,14 @@ Mỗi algorithm có một file riêng để dễ mở rộng khi thêm baseline 
 | FedSAM | [fedsam.md](fedsam.md) |
 | FedSpeed | [fedspeed.md](fedspeed.md) |
 | FedNTD | [fedntd.md](fedntd.md) |
+| FedLC | [fedlc.md](fedlc.md) |
+| FedRS | [fedrs.md](fedrs.md) |
 | FedProto | [fedproto.md](fedproto.md) |
+| FedMeta | [fedmeta.md](fedmeta.md) |
+| FedCurv | [fedcurv.md](fedcurv.md) |
+| FedMMD | [fedmmd.md](fedmmd.md) |
+| FedNP | [fednp.md](fednp.md) |
+| APFL | [apfl.md](apfl.md) |
 | FedNova | [fednova.md](fednova.md) |
 | pFedMe | [pfedme.md](pfedme.md) |
 | FedPer | [fedper.md](fedper.md) |

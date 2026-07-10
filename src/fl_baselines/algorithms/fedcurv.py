@@ -1,4 +1,4 @@
-"""FedProto algorithm builder."""
+"""FedCurv algorithm builder."""
 
 from __future__ import annotations
 
@@ -14,38 +14,40 @@ from fl_baselines.core.config import ExperimentConfig
 from fl_baselines.core.types import ServerEvaluateFn
 from fl_baselines.logging.checkpointing import save_round_checkpoints
 from fl_baselines.logging.metrics import weighted_average
-from fl_baselines.training.features import infer_feature_dim
 
 
-class FedProtoStrategy(FedAvg):
-    """Flower strategy that aggregates class prototypes instead of model weights."""
+class FedCurvStrategy(FedAvg):
+    """FedCurv strategy broadcasting global curvature aggregates."""
 
     def __init__(
         self,
         *,
-        num_classes: int,
-        global_prototypes: np.ndarray,
+        curvature_aggregate: list[np.ndarray],
+        weighted_parameter_aggregate: list[np.ndarray],
+        model_parameter_count: int,
         checkpoint_model: torch.nn.Module,
         output_dir: str,
         **kwargs: object,
     ) -> None:
         super().__init__(**kwargs)
-        if self.initial_parameters is None:
-            raise ValueError("FedProtoStrategy requires initial_parameters")
-        self.num_classes = num_classes
-        self.global_prototypes = global_prototypes.copy()
-        self.global_model_parameters = parameters_to_ndarrays(self.initial_parameters)
+        self.curvature_aggregate = [array.copy() for array in curvature_aggregate]
+        self.weighted_parameter_aggregate = [
+            array.copy() for array in weighted_parameter_aggregate
+        ]
+        self.model_parameter_count = model_parameter_count
         self._checkpoint_model = checkpoint_model
         self._output_dir = output_dir
 
     def configure_fit(self, server_round, parameters, client_manager):
         client_fit_ins = super().configure_fit(server_round, parameters, client_manager)
         model_parameters = parameters_to_ndarrays(parameters)
-        combined_parameters = ndarrays_to_parameters(
-            model_parameters + [self.global_prototypes.copy()]
+        payload = ndarrays_to_parameters(
+            model_parameters
+            + [array.copy() for array in self.curvature_aggregate]
+            + [array.copy() for array in self.weighted_parameter_aggregate]
         )
         return [
-            (client, FitIns(combined_parameters, fit_ins.config))
+            (client, FitIns(payload, fit_ins.config))
             for client, fit_ins in client_fit_ins
         ]
 
@@ -55,19 +57,24 @@ class FedProtoStrategy(FedAvg):
         if not self.accept_failures and failures:
             return None, {}
 
-        prototype_sums = []
-        prototype_counts = []
+        expected_payload_count = self.model_parameter_count * 3
+        model_updates: list[list[np.ndarray]] = []
+        curvature_updates: list[list[np.ndarray]] = []
+        weighted_updates: list[list[np.ndarray]] = []
         for _, fit_res in results:
             arrays = parameters_to_ndarrays(fit_res.parameters)
-            if len(arrays) < 3:
-                raise ValueError("FedProto client result is missing prototype payload")
-            prototype_sum = arrays[-2]
-            prototype_count = arrays[-1]
-            prototype_sums.append(prototype_sum)
-            prototype_counts.append(prototype_count)
+            if len(arrays) != expected_payload_count:
+                raise ValueError("FedCurv client result is missing curvature payload")
+            model_updates.append(arrays[: self.model_parameter_count])
+            curvature_updates.append(
+                arrays[self.model_parameter_count : 2 * self.model_parameter_count]
+            )
+            weighted_updates.append(arrays[2 * self.model_parameter_count :])
 
-        self._aggregate_prototypes(prototype_sums, prototype_counts)
-        parameters_aggregated = ndarrays_to_parameters(self.global_model_parameters)
+        aggregated_model = _average_arrays(model_updates)
+        self.curvature_aggregate = _sum_arrays(curvature_updates)
+        self.weighted_parameter_aggregate = _sum_arrays(weighted_updates)
+        parameters_aggregated = ndarrays_to_parameters(aggregated_model)
 
         metrics_aggregated: dict[str, Scalar] = {}
         if self.fit_metrics_aggregation_fn:
@@ -82,35 +89,38 @@ class FedProtoStrategy(FedAvg):
         )
         return parameters_aggregated, metrics_aggregated
 
-    def _aggregate_prototypes(
-        self,
-        prototype_sums: list[np.ndarray],
-        prototype_counts: list[np.ndarray],
-    ) -> None:
-        total_sums = np.sum(np.stack(prototype_sums, axis=0), axis=0)
-        total_counts = np.sum(np.stack(prototype_counts, axis=0), axis=0)
-        for class_index in range(self.num_classes):
-            count = total_counts[class_index]
-            if count > 0:
-                self.global_prototypes[class_index] = total_sums[class_index] / count
+
+def _average_arrays(results: list[list[np.ndarray]]) -> list[np.ndarray]:
+    client_count = len(results)
+    return [
+        sum(client_arrays[index] for client_arrays in results) / float(client_count)
+        for index in range(len(results[0]))
+    ]
 
 
-class FedProtoBuilder:
-    name = "fedproto"
+def _sum_arrays(results: list[list[np.ndarray]]) -> list[np.ndarray]:
+    return [
+        sum(client_arrays[index] for client_arrays in results)
+        for index in range(len(results[0]))
+    ]
+
+
+class FedCurvBuilder:
+    name = "fedcurv"
 
     def build_strategy(
         self,
         config: ExperimentConfig,
         initial_model: torch.nn.Module,
         evaluate_fn: ServerEvaluateFn | None,
-    ) -> FedProtoStrategy:
+    ) -> FedCurvStrategy:
         min_fit_clients = max(1, math.ceil(config.num_supernodes * config.fraction_train))
         min_eval_clients = max(1, math.ceil(config.num_supernodes * config.fraction_evaluate))
-        initial_parameters = ndarrays_to_parameters(get_model_parameters(initial_model))
-        feature_dim = infer_feature_dim(initial_model, config)
-        global_prototypes = np.zeros((config.num_classes, feature_dim), dtype=np.float32)
+        model_parameters = get_model_parameters(initial_model)
+        initial_parameters = ndarrays_to_parameters(model_parameters)
+        zero_curvature = [np.zeros_like(array, dtype=np.float32) for array in model_parameters]
 
-        return FedProtoStrategy(
+        return FedCurvStrategy(
             fraction_fit=config.fraction_train,
             fraction_evaluate=config.fraction_evaluate,
             min_fit_clients=min_fit_clients,
@@ -121,8 +131,9 @@ class FedProtoBuilder:
             fit_metrics_aggregation_fn=weighted_average,
             evaluate_metrics_aggregation_fn=weighted_average,
             initial_parameters=initial_parameters,
-            num_classes=config.num_classes,
-            global_prototypes=global_prototypes,
+            curvature_aggregate=zero_curvature,
+            weighted_parameter_aggregate=zero_curvature,
+            model_parameter_count=len(model_parameters),
             checkpoint_model=initial_model,
             output_dir=config.output_dir,
         )
@@ -134,7 +145,9 @@ class FedProtoBuilder:
                 "server_round": server_round,
                 "local_epochs": config.local_epochs,
                 "learning_rate": config.learning_rate,
-                "fedproto_lambda": config.fedproto_lambda,
+                "fedcurv_lambda": config.fedcurv_lambda,
+                "fedcurv_fisher_batches": config.fedcurv_fisher_batches,
+                "fedcurv_stability_eps": config.fedcurv_stability_eps,
             }
 
         return fn

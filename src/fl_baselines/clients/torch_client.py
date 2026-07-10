@@ -35,7 +35,13 @@ from fl_baselines.training.feddyn import train_feddyn_client, update_feddyn_stat
 from fl_baselines.training.fedsam import train_fedsam_client
 from fl_baselines.training.fedspeed import train_fedspeed_client
 from fl_baselines.training.fedntd import train_fedntd_client
+from fl_baselines.training.fedlc import train_fedlc_client
+from fl_baselines.training.fedrs import train_fedrs_client
 from fl_baselines.training.fedproto import train_fedproto_client
+from fl_baselines.training.fedmeta import train_fedmeta_client
+from fl_baselines.training.fednp import train_fednp_client
+from fl_baselines.training.fedcurv import train_fedcurv_client
+from fl_baselines.training.apfl import train_apfl_client
 from fl_baselines.training.moon import train_moon_client
 from fl_baselines.training.pfedme import train_pfedme_client
 from fl_baselines.training.scaffold import train_scaffold_client
@@ -121,8 +127,20 @@ class TorchFlowerClient(NumPyClient):
             return self._fit_fedspeed(parameters, config)
         if algorithm == "fedproto":
             return self._fit_fedproto(parameters, config)
+        if algorithm == "fedmeta":
+            return self._fit_fedmeta(parameters, config)
+        if algorithm == "fednp":
+            return self._fit_fednp(parameters, config)
+        if algorithm == "fedcurv":
+            return self._fit_fedcurv(parameters, config)
         if algorithm == "fedntd":
             return self._fit_fedntd(parameters, config)
+        if algorithm == "fedlc":
+            return self._fit_fedlc(parameters, config)
+        if algorithm == "fedrs":
+            return self._fit_fedrs(parameters, config)
+        if algorithm == "apfl":
+            return self._fit_apfl(parameters, config)
         if algorithm == "ditto":
             return self._fit_ditto(parameters, config)
         if algorithm == "pfedme":
@@ -725,6 +743,45 @@ class TorchFlowerClient(NumPyClient):
 
         return get_model_parameters(self.model), len(self.loaders.train.dataset), metrics
 
+    def _fit_apfl(
+        self,
+        parameters: list[np.ndarray],
+        config: dict[str, bool | bytes | float | int | str],
+    ) -> tuple[list[np.ndarray], int, dict[str, bool | bytes | float | int | str]]:
+        set_model_parameters(self.model, parameters)
+        global_model = copy.deepcopy(self.model)
+        personalized_model = self._load_apfl_personalized_model(global_model)
+        alpha = self._load_apfl_alpha(float(config.get("apfl_alpha", self.config.apfl_alpha)))
+
+        metrics, alpha_value = train_apfl_client(
+            self.model,
+            personalized_model,
+            self.loaders.train,
+            epochs=int(config.get("local_epochs", self.config.local_epochs)),
+            learning_rate=float(config.get("learning_rate", self.config.learning_rate)),
+            personal_learning_rate=float(
+                config.get(
+                    "apfl_personal_learning_rate",
+                    self.config.apfl_personal_learning_rate,
+                )
+            ),
+            device=self.config.device,
+            alpha=alpha,
+            adaptive_alpha=bool(
+                config.get("apfl_adaptive_alpha", self.config.apfl_adaptive_alpha)
+            ),
+            alpha_learning_rate=float(
+                config.get(
+                    "apfl_alpha_learning_rate",
+                    self.config.apfl_alpha_learning_rate,
+                )
+            ),
+        )
+        self._save_apfl_personalized_model(personalized_model)
+        self._save_apfl_alpha(alpha_value)
+
+        return get_model_parameters(self.model), len(self.loaders.train.dataset), metrics
+
     def _fit_fedntd(
         self,
         parameters: list[np.ndarray],
@@ -751,6 +808,51 @@ class TorchFlowerClient(NumPyClient):
         )
         return get_model_parameters(self.model), len(self.loaders.train.dataset), metrics
 
+    def _fit_fedlc(
+        self,
+        parameters: list[np.ndarray],
+        config: dict[str, bool | bytes | float | int | str],
+    ) -> tuple[list[np.ndarray], int, dict[str, bool | bytes | float | int | str]]:
+        set_model_parameters(self.model, parameters)
+
+        local_epochs = int(config.get("local_epochs", self.config.local_epochs))
+        learning_rate = float(config.get("learning_rate", self.config.learning_rate))
+        num_classes = int(config.get("num_classes", self.config.num_classes))
+        fedlc_tau = float(config.get("fedlc_tau", self.config.fedlc_tau))
+        fedlc_epsilon = float(config.get("fedlc_epsilon", self.config.fedlc_epsilon))
+        metrics = train_fedlc_client(
+            self.model,
+            self.loaders.train,
+            epochs=local_epochs,
+            learning_rate=learning_rate,
+            device=self.config.device,
+            num_classes=num_classes,
+            fedlc_tau=fedlc_tau,
+            fedlc_epsilon=fedlc_epsilon,
+        )
+        return get_model_parameters(self.model), len(self.loaders.train.dataset), metrics
+
+    def _fit_fedrs(
+        self,
+        parameters: list[np.ndarray],
+        config: dict[str, bool | bytes | float | int | str],
+    ) -> tuple[list[np.ndarray], int, dict[str, bool | bytes | float | int | str]]:
+        set_model_parameters(self.model, parameters)
+        local_epochs = int(config.get("local_epochs", self.config.local_epochs))
+        learning_rate = float(config.get("learning_rate", self.config.learning_rate))
+        num_classes = int(config.get("num_classes", self.config.num_classes))
+        fedrs_alpha = float(config.get("fedrs_alpha", self.config.fedrs_alpha))
+        metrics = train_fedrs_client(
+            self.model,
+            self.loaders.train,
+            epochs=local_epochs,
+            learning_rate=learning_rate,
+            device=self.config.device,
+            num_classes=num_classes,
+            fedrs_alpha=fedrs_alpha,
+        )
+        return get_model_parameters(self.model), len(self.loaders.train.dataset), metrics
+
     def _fit_fedproto(
         self,
         parameters: list[np.ndarray],
@@ -762,7 +864,12 @@ class TorchFlowerClient(NumPyClient):
 
         model_parameters = parameters[:model_parameter_count]
         global_prototypes = parameters[model_parameter_count]
-        set_model_parameters(self.model, model_parameters)
+        local_model_path = self._fedproto_local_model_path()
+        if local_model_path.exists():
+            state = torch.load(local_model_path, map_location="cpu", weights_only=True)
+            self.model.load_state_dict(state, strict=True)
+        else:
+            set_model_parameters(self.model, model_parameters)
 
         local_epochs = int(config.get("local_epochs", self.config.local_epochs))
         learning_rate = float(config.get("learning_rate", self.config.learning_rate))
@@ -778,10 +885,181 @@ class TorchFlowerClient(NumPyClient):
             fedproto_lambda=fedproto_lambda,
             global_prototypes=global_prototypes,
         )
+        local_model_path.parent.mkdir(parents=True, exist_ok=True)
+        torch.save(self.model.state_dict(), local_model_path)
         return (
             get_model_parameters(self.model) + [prototype_sums, prototype_counts],
             len(self.loaders.train.dataset),
             metrics,
+        )
+
+    def _fedproto_local_model_path(self) -> Path:
+        return (
+            Path(self.config.output_dir)
+            / "fedproto_clients"
+            / self.client_id
+            / "local_model.pt"
+        )
+
+    def _fit_fedmeta(
+        self,
+        parameters: list[np.ndarray],
+        config: dict[str, bool | bytes | float | int | str],
+    ) -> tuple[list[np.ndarray], int, dict[str, bool | bytes | float | int | str]]:
+        model_parameter_count = len(get_model_parameters(self.model))
+        method = str(config.get("fedmeta_method", self.config.fedmeta_method))
+        meta_sgd = method == "meta-sgd"
+        expected_count = model_parameter_count * (2 if meta_sgd else 1)
+        if len(parameters) != expected_count:
+            raise ValueError("FedMeta fit requires algorithm parameters matching the method")
+
+        model_parameters = parameters[:model_parameter_count]
+        alpha_parameters = parameters[model_parameter_count:] if meta_sgd else None
+        set_model_parameters(self.model, model_parameters)
+
+        metrics, gradients = train_fedmeta_client(
+            self.model,
+            self.loaders.train,
+            device=self.config.device,
+            inner_learning_rate=float(
+                config.get(
+                    "fedmeta_inner_learning_rate",
+                    self.config.fedmeta_inner_learning_rate,
+                )
+            ),
+            support_fraction=float(
+                config.get(
+                    "fedmeta_support_fraction",
+                    self.config.fedmeta_support_fraction,
+                )
+            ),
+            inner_steps=int(
+                config.get("fedmeta_inner_steps", self.config.fedmeta_inner_steps)
+            ),
+            first_order=bool(
+                config.get("fedmeta_first_order", self.config.fedmeta_first_order)
+            ),
+            alpha_parameters=alpha_parameters,
+        )
+        return gradients, len(self.loaders.train.dataset), metrics
+
+    def _fit_fednp(
+        self,
+        parameters: list[np.ndarray],
+        config: dict[str, bool | bytes | float | int | str],
+    ) -> tuple[list[np.ndarray], int, dict[str, bool | bytes | float | int | str]]:
+        model_parameter_count = len(get_model_parameters(self.model))
+        if len(parameters) != model_parameter_count + 2:
+            raise ValueError("FedNP fit requires model parameters plus latent Gaussian statistics")
+
+        model_parameters = parameters[:model_parameter_count]
+        latent_mean = parameters[-2]
+        latent_var = parameters[-1]
+        set_model_parameters(self.model, model_parameters)
+
+        metrics, latent_sum, latent_square_sum, latent_count = train_fednp_client(
+            self.model,
+            self.loaders.train,
+            epochs=int(config.get("local_epochs", self.config.local_epochs)),
+            learning_rate=float(config.get("learning_rate", self.config.learning_rate)),
+            device=self.config.device,
+            latent_mean=latent_mean,
+            latent_var=latent_var,
+            fednp_lambda=float(config.get("fednp_lambda", self.config.fednp_lambda)),
+            fednp_stability_eps=float(
+                config.get("fednp_stability_eps", self.config.fednp_stability_eps)
+            ),
+        )
+        return (
+            get_model_parameters(self.model) + [latent_sum, latent_square_sum, latent_count],
+            len(self.loaders.train.dataset),
+            metrics,
+        )
+
+    def _fit_fedcurv(
+        self,
+        parameters: list[np.ndarray],
+        config: dict[str, bool | bytes | float | int | str],
+    ) -> tuple[list[np.ndarray], int, dict[str, bool | bytes | float | int | str]]:
+        model_parameter_count = len(get_model_parameters(self.model))
+        if len(parameters) != model_parameter_count * 3:
+            raise ValueError("FedCurv fit requires model parameters plus global curvature aggregates")
+
+        model_parameters = parameters[:model_parameter_count]
+        global_curvature = parameters[model_parameter_count : 2 * model_parameter_count]
+        global_weighted = parameters[2 * model_parameter_count :]
+        set_model_parameters(self.model, model_parameters)
+
+        local_curvature, local_weighted = self._load_fedcurv_state(model_parameters)
+        metrics, curvature_payload, weighted_payload = train_fedcurv_client(
+            self.model,
+            self.loaders.train,
+            epochs=int(config.get("local_epochs", self.config.local_epochs)),
+            learning_rate=float(config.get("learning_rate", self.config.learning_rate)),
+            device=self.config.device,
+            global_curvature=global_curvature,
+            global_weighted=global_weighted,
+            local_curvature=local_curvature,
+            local_weighted=local_weighted,
+            fedcurv_lambda=float(config.get("fedcurv_lambda", self.config.fedcurv_lambda)),
+            fisher_batches=int(
+                config.get("fedcurv_fisher_batches", self.config.fedcurv_fisher_batches)
+            ),
+            fedcurv_stability_eps=float(
+                config.get(
+                    "fedcurv_stability_eps",
+                    self.config.fedcurv_stability_eps,
+                )
+            ),
+        )
+        self._save_fedcurv_state(curvature_payload, weighted_payload)
+        return (
+            get_model_parameters(self.model) + curvature_payload + weighted_payload,
+            len(self.loaders.train.dataset),
+            metrics,
+        )
+
+    def _fedcurv_state_path(self) -> Path:
+        return (
+            Path(self.config.output_dir)
+            / "fedcurv_clients"
+            / self.client_id
+            / "curvature_state.pt"
+        )
+
+    def _load_fedcurv_state(
+        self,
+        model_parameters: list[np.ndarray],
+    ) -> tuple[list[np.ndarray], list[np.ndarray]]:
+        state_path = self._fedcurv_state_path()
+        zero_state = [np.zeros_like(array, dtype=np.float32) for array in model_parameters]
+        if not state_path.exists():
+            return zero_state, [array.copy() for array in zero_state]
+
+        state = torch.load(state_path, map_location="cpu", weights_only=True)
+        curvature = [
+            tensor.detach().cpu().numpy().astype(np.float32)
+            for tensor in state["curvature"]
+        ]
+        weighted = [
+            tensor.detach().cpu().numpy().astype(np.float32)
+            for tensor in state["weighted"]
+        ]
+        return curvature, weighted
+
+    def _save_fedcurv_state(
+        self,
+        curvature_payload: list[np.ndarray],
+        weighted_payload: list[np.ndarray],
+    ) -> None:
+        state_path = self._fedcurv_state_path()
+        state_path.parent.mkdir(parents=True, exist_ok=True)
+        torch.save(
+            {
+                "curvature": [torch.from_numpy(array.copy()) for array in curvature_payload],
+                "weighted": [torch.from_numpy(array.copy()) for array in weighted_payload],
+            },
+            state_path,
         )
 
     def _fit_pfedme(
@@ -1054,6 +1332,70 @@ class TorchFlowerClient(NumPyClient):
         personal_path.parent.mkdir(parents=True, exist_ok=True)
         torch.save(model.state_dict(), personal_path)
 
+    def _apfl_personalized_model_path(self) -> Path:
+        return (
+            Path(self.config.output_dir)
+            / "apfl_clients"
+            / self.client_id
+            / "personalized.pt"
+        )
+
+    def _apfl_alpha_path(self) -> Path:
+        return (
+            Path(self.config.output_dir)
+            / "apfl_clients"
+            / self.client_id
+            / "alpha.json"
+        )
+
+    def _load_apfl_personalized_model(self, global_model: nn.Module) -> nn.Module:
+        personalized_model = copy.deepcopy(global_model)
+        personal_path = self._apfl_personalized_model_path()
+        if personal_path.exists():
+            personal_state = torch.load(
+                personal_path,
+                map_location="cpu",
+                weights_only=True,
+            )
+            personalized_model.load_state_dict(personal_state, strict=True)
+        return personalized_model
+
+    def _save_apfl_personalized_model(self, model: nn.Module) -> None:
+        personal_path = self._apfl_personalized_model_path()
+        personal_path.parent.mkdir(parents=True, exist_ok=True)
+        torch.save(model.state_dict(), personal_path)
+
+    def _load_apfl_alpha(self, default_alpha: float) -> float:
+        alpha_path = self._apfl_alpha_path()
+        if not alpha_path.exists():
+            return float(default_alpha)
+        return float(json.loads(alpha_path.read_text())["alpha"])
+
+    def _save_apfl_alpha(self, alpha: float) -> None:
+        alpha_path = self._apfl_alpha_path()
+        alpha_path.parent.mkdir(parents=True, exist_ok=True)
+        alpha_path.write_text(json.dumps({"alpha": float(alpha)}))
+
+    def _build_apfl_mixed_model(
+        self,
+        global_model: nn.Module,
+        personalized_model: nn.Module,
+        alpha: float,
+    ) -> nn.Module:
+        mixed_model = copy.deepcopy(global_model)
+        global_state = global_model.state_dict()
+        personal_state = personalized_model.state_dict()
+        mixed_state = OrderedDict()
+        for key in global_state:
+            global_value = global_state[key].detach().cpu()
+            personal_value = personal_state[key].detach().cpu()
+            if torch.is_floating_point(global_value):
+                mixed_state[key] = alpha * personal_value + (1.0 - alpha) * global_value
+            else:
+                mixed_state[key] = personal_value.clone()
+        mixed_model.load_state_dict(mixed_state, strict=True)
+        return mixed_model
+
     def _fedala_state_path(self) -> Path:
         return (
             Path(self.config.output_dir)
@@ -1311,6 +1653,18 @@ class TorchFlowerClient(NumPyClient):
                 set_model_parameters(self.model, parameters)
             else:
                 self.model.load_state_dict(state["model"], strict=True)
+        elif algorithm == "apfl":
+            set_model_parameters(self.model, parameters)
+            global_model = copy.deepcopy(self.model)
+            personalized_model = self._load_apfl_personalized_model(global_model)
+            alpha = self._load_apfl_alpha(self.config.apfl_alpha)
+            mixed_model = self._build_apfl_mixed_model(global_model, personalized_model, alpha)
+            loss, metrics = evaluate_model(
+                mixed_model,
+                self.loaders.test,
+                device=self.config.device,
+            )
+            return loss, len(self.loaders.test.dataset), metrics
         else:
             set_model_parameters(self.model, parameters)
         loss, metrics = evaluate_model(

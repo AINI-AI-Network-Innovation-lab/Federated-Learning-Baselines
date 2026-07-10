@@ -39,6 +39,9 @@ Mỗi algorithm có một file riêng trong `docs/algorithms/` để dễ mở r
 | [algorithms/index.md](algorithms/index.md) | Mục lục algorithm. |
 | [algorithms/fedavg.md](algorithms/fedavg.md) | FedAvg strategy builder và config liên quan. |
 | [algorithms/fedavgm.md](algorithms/fedavgm.md) | FedAvgM và server momentum. |
+| [algorithms/fedadagrad.md](algorithms/fedadagrad.md) | FedAdagrad adaptive server optimizer trong họ FedOpt. |
+| [algorithms/fedadam.md](algorithms/fedadam.md) | FedAdam adaptive server optimizer trong họ FedOpt. |
+| [algorithms/fedyogi.md](algorithms/fedyogi.md) | FedYogi adaptive server optimizer trong họ FedOpt. |
 | [algorithms/fedadp.md](algorithms/fedadp.md) | FedAdp adaptive weighting theo góc giữa local/global update. |
 | [algorithms/gamf.md](algorithms/gamf.md) | GAMF second-order graph-matching aggregation tren server, dung local training mac dinh va align hidden units truoc khi fuse. |
 | [algorithms/fedma.md](algorithms/fedma.md) | FedMA layer-wise matched averaging cho `mnist_cnn` va `lenet` voi Hungarian matching va frozen-prefix local retraining. |
@@ -58,7 +61,14 @@ Mỗi algorithm có một file riêng trong `docs/algorithms/` để dễ mở r
 | [algorithms/fedsam.md](algorithms/fedsam.md) | FedSAM local Sharpness Aware Minimization tren client, giu server aggregation kieu FedAvg. |
 | [algorithms/fedspeed.md](algorithms/fedspeed.md) | FedSpeed quasi-gradient local training voi persisted client state `g_hat` va amended client payload gui server. |
 | [algorithms/fedntd.md](algorithms/fedntd.md) | FedNTD not-true distillation từ global teacher snapshot trong local training. |
+| [algorithms/fedlc.md](algorithms/fedlc.md) | FedLC logits calibration dua tren local class counts cho label distribution skew. |
+| [algorithms/fedrs.md](algorithms/fedrs.md) | FedRS restricted softmax giam indirect pushing tren missing classes. |
 | [algorithms/fedproto.md](algorithms/fedproto.md) | FedProto prototype aggregation với embedding regularization, giữ classifier/eval pipeline hiện tại. |
+| [algorithms/fedmeta.md](algorithms/fedmeta.md) | FedMeta federated MAML/Meta-SGD với support/query local meta-gradient payload. |
+| [algorithms/fedcurv.md](algorithms/fedcurv.md) | FedCurv curvature-aware local regularization với global `u/v` aggregates và diagonal Fisher payload. |
+| [algorithms/fedmmd.md](algorithms/fedmmd.md) | FedMMD server-side discrepancy-aware client selection và entropy-style aggregation weighting. |
+| [algorithms/fednp.md](algorithms/fednp.md) | FedNP latent Gaussian global-distribution regularization với server moment matching. |
+| [algorithms/apfl.md](algorithms/apfl.md) | APFL adaptive mixing giữa global branch và personalized local branch với persisted `alpha`. |
 | [algorithms/fednova.md](algorithms/fednova.md) | FedNova normalized averaging và client update metrics. |
 | [algorithms/pfedme.md](algorithms/pfedme.md) | pFedMe Moreau-style personalization với persisted personalized state và server beta mixing. |
 | [algorithms/fedper.md](algorithms/fedper.md) | FedPer shared base aggregation và personalized local head. |

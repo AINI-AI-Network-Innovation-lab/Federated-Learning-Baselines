@@ -14,13 +14,16 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader, TensorDataset
 from flwr.common import Code, FitRes, Status, ndarrays_to_parameters, parameters_to_ndarrays
-from flwr.server.strategy import FedAvg, FedAvgM, FedProx
+from flwr.server.strategy import FedAdagrad, FedAdam, FedAvg, FedAvgM, FedProx, FedYogi
 
 import fl_baselines.clients.torch_client as torch_client_module
 from fl_baselines.clients.torch_client import TorchFlowerClient, get_model_parameters
 from fl_baselines.algorithms.fedavg import FedAvgBuilder
 from fl_baselines.algorithms.fedavgm import FedAvgMBuilder
+from fl_baselines.algorithms.fedadagrad import FedAdagradBuilder
+from fl_baselines.algorithms.fedadam import FedAdamBuilder
 from fl_baselines.algorithms.fedadp import FedAdpBuilder, FedAdpStrategy
+from fl_baselines.algorithms.fedyogi import FedYogiBuilder
 from fl_baselines.algorithms.gamf import GAMFBuilder, GAMFStrategy
 from fl_baselines.algorithms.fedma import FedMABuilder, FedMAStrategy
 from fl_baselines.algorithms.fedcda import FedCDABuilder, FedCDAStrategy
@@ -39,6 +42,8 @@ from fl_baselines.algorithms.fedexp import FedExPBuilder, FedExPStrategy
 from fl_baselines.algorithms.fedsam import FedSAMBuilder
 from fl_baselines.algorithms.fedspeed import FedSpeedBuilder
 from fl_baselines.algorithms.fedntd import FedNTDBuilder
+from fl_baselines.algorithms.fedlc import FedLCBuilder
+from fl_baselines.algorithms.fedrs import FedRSBuilder
 from fl_baselines.algorithms.fedproto import FedProtoBuilder, FedProtoStrategy
 from fl_baselines.algorithms.pfedme import PFedMeBuilder, PFedMeStrategy
 from fl_baselines.algorithms.fedper import FedPerBuilder, FedPerStrategy
@@ -78,6 +83,16 @@ from fl_baselines.training.fedvck import train_fedvck_client
 from fl_baselines.training.fedsam import train_fedsam_client
 from fl_baselines.training.fedspeed import train_fedspeed_client
 from fl_baselines.training.fedntd import train_fedntd_client
+from fl_baselines.training.fedlc import (
+    fedlc_loss,
+    local_class_counts,
+    train_fedlc_client,
+)
+from fl_baselines.training.fedrs import (
+    fedrs_loss,
+    observed_class_mask,
+    train_fedrs_client,
+)
 from fl_baselines.training.moon import train_moon_client
 from fl_baselines.training.fedala import adaptive_local_aggregation
 from fl_baselines.training.scaffold import train_scaffold_client
@@ -271,6 +286,77 @@ class ModelAndAlgorithmTest(unittest.TestCase):
         self.assertEqual(strategy.min_fit_clients, 4)
         self.assertEqual(strategy.server_learning_rate, 0.8)
         self.assertEqual(strategy.server_momentum, 0.95)
+
+    def test_fedadam_builder_creates_flower_strategy(self) -> None:
+        config = ExperimentConfig.from_run_config(
+            {
+                "num-supernodes": 4,
+                "fedadam-eta": 0.2,
+                "fedadam-eta-l": 0.03,
+                "fedadam-beta-1": 0.8,
+                "fedadam-beta-2": 0.97,
+                "fedadam-tau": 1e-6,
+            }
+        )
+        model = MnistCnnBuilder().build_model(config)
+
+        strategy = FedAdamBuilder().build_strategy(config, model, evaluate_fn=None)
+        fit_config = strategy.on_fit_config_fn(1)
+
+        self.assertIsInstance(strategy, FedAdam)
+        self.assertEqual(strategy.min_fit_clients, 4)
+        self.assertEqual(strategy.eta, 0.2)
+        self.assertEqual(strategy.eta_l, 0.03)
+        self.assertEqual(strategy.beta_1, 0.8)
+        self.assertEqual(strategy.beta_2, 0.97)
+        self.assertEqual(strategy.tau, 1e-6)
+        self.assertEqual(fit_config["algorithm"], "fedadam")
+
+    def test_fedadagrad_builder_creates_flower_strategy(self) -> None:
+        config = ExperimentConfig.from_run_config(
+            {
+                "num-supernodes": 4,
+                "fedadagrad-eta": 0.15,
+                "fedadagrad-eta-l": 0.04,
+                "fedadagrad-tau": 1e-7,
+            }
+        )
+        model = MnistCnnBuilder().build_model(config)
+
+        strategy = FedAdagradBuilder().build_strategy(config, model, evaluate_fn=None)
+        fit_config = strategy.on_fit_config_fn(1)
+
+        self.assertIsInstance(strategy, FedAdagrad)
+        self.assertEqual(strategy.min_fit_clients, 4)
+        self.assertEqual(strategy.eta, 0.15)
+        self.assertEqual(strategy.eta_l, 0.04)
+        self.assertEqual(strategy.tau, 1e-7)
+        self.assertEqual(fit_config["algorithm"], "fedadagrad")
+
+    def test_fedyogi_builder_creates_flower_strategy(self) -> None:
+        config = ExperimentConfig.from_run_config(
+            {
+                "num-supernodes": 4,
+                "fedyogi-eta": 0.02,
+                "fedyogi-eta-l": 0.025,
+                "fedyogi-beta-1": 0.85,
+                "fedyogi-beta-2": 0.96,
+                "fedyogi-tau": 1e-4,
+            }
+        )
+        model = MnistCnnBuilder().build_model(config)
+
+        strategy = FedYogiBuilder().build_strategy(config, model, evaluate_fn=None)
+        fit_config = strategy.on_fit_config_fn(1)
+
+        self.assertIsInstance(strategy, FedYogi)
+        self.assertEqual(strategy.min_fit_clients, 4)
+        self.assertEqual(strategy.eta, 0.02)
+        self.assertEqual(strategy.eta_l, 0.025)
+        self.assertEqual(strategy.beta_1, 0.85)
+        self.assertEqual(strategy.beta_2, 0.96)
+        self.assertEqual(strategy.tau, 1e-4)
+        self.assertEqual(fit_config["algorithm"], "fedyogi")
 
     def test_fedadp_builder_creates_strategy(self) -> None:
         config = ExperimentConfig.from_run_config(
@@ -1245,6 +1331,157 @@ class ModelAndAlgorithmTest(unittest.TestCase):
                 self.assertEqual(features.ndim, 2)
                 self.assertEqual(features.shape[0], 2)
 
+    def test_fedmeta_builder_creates_strategy(self) -> None:
+        from fl_baselines.algorithms.fedmeta import FedMetaBuilder, FedMetaStrategy
+
+        config = ExperimentConfig.from_run_config(
+            {
+                "algorithm": "fedmeta",
+                "num-supernodes": 4,
+                "fedmeta-method": "meta-sgd",
+                "fedmeta-inner-learning-rate": 0.05,
+                "fedmeta-outer-learning-rate": 0.01,
+                "fedmeta-support-fraction": 0.4,
+                "fedmeta-inner-steps": 2,
+                "fedmeta-first-order": False,
+                "fedmeta-alpha-init": 0.03,
+            }
+        )
+        model = torch.nn.Linear(3, 2)
+
+        strategy = FedMetaBuilder().build_strategy(config, model, evaluate_fn=None)
+        fit_config = strategy.on_fit_config_fn(3)
+
+        self.assertIsInstance(strategy, FedMetaStrategy)
+        self.assertEqual(strategy.min_fit_clients, 4)
+        self.assertEqual(fit_config["algorithm"], "fedmeta")
+        self.assertEqual(fit_config["fedmeta_method"], "meta-sgd")
+        self.assertEqual(fit_config["fedmeta_inner_learning_rate"], 0.05)
+        self.assertEqual(fit_config["fedmeta_support_fraction"], 0.4)
+        self.assertEqual(fit_config["fedmeta_inner_steps"], 2)
+        self.assertFalse(fit_config["fedmeta_first_order"])
+
+    def test_fedmeta_strategy_applies_weighted_meta_gradients(self) -> None:
+        from fl_baselines.algorithms.fedmeta import FedMetaStrategy
+
+        model = torch.nn.Linear(2, 1, bias=False)
+        initial_parameters = [np.array([[2.0, 4.0]], dtype=np.float32)]
+        strategy = FedMetaStrategy(
+            fraction_fit=1.0,
+            fraction_evaluate=1.0,
+            min_fit_clients=2,
+            min_evaluate_clients=2,
+            min_available_clients=2,
+            initial_parameters=ndarrays_to_parameters(initial_parameters),
+            meta_sgd=False,
+            outer_learning_rate=0.5,
+            checkpoint_model=model,
+            output_dir=tempfile.mkdtemp(),
+        )
+        first_gradient = [np.array([[2.0, 0.0]], dtype=np.float32)]
+        second_gradient = [np.array([[0.0, 4.0]], dtype=np.float32)]
+        results = [
+            (
+                None,
+                FitRes(
+                    Status(Code.OK, ""),
+                    ndarrays_to_parameters(first_gradient),
+                    1,
+                    {},
+                ),
+            ),
+            (
+                None,
+                FitRes(
+                    Status(Code.OK, ""),
+                    ndarrays_to_parameters(second_gradient),
+                    3,
+                    {},
+                ),
+            ),
+        ]
+
+        updated_parameters, _ = strategy.aggregate_fit(1, results, [])
+
+        expected_gradient = np.array([[0.5, 3.0]], dtype=np.float32)
+        expected_parameters = initial_parameters[0] - 0.5 * expected_gradient
+        np.testing.assert_allclose(parameters_to_ndarrays(updated_parameters)[0], expected_parameters)
+
+    def test_fednp_builder_creates_strategy(self) -> None:
+        from fl_baselines.algorithms.fednp import FedNPBuilder, FedNPStrategy
+
+        config = ExperimentConfig.from_run_config(
+            {
+                "algorithm": "fednp",
+                "num-supernodes": 4,
+                "num-classes": 3,
+                "fednp-lambda": 0.6,
+                "fednp-prior-variance": 1.5,
+                "fednp-stability-eps": 1e-5,
+            }
+        )
+        model = MnistCnnBuilder().build_model(config)
+
+        strategy = FedNPBuilder().build_strategy(config, model, evaluate_fn=None)
+        fit_config = strategy.on_fit_config_fn(1)
+
+        self.assertIsInstance(strategy, FedNPStrategy)
+        self.assertEqual(strategy.min_fit_clients, 4)
+        self.assertEqual(fit_config["algorithm"], "fednp")
+        self.assertEqual(fit_config["fednp_lambda"], 0.6)
+        self.assertEqual(fit_config["fednp_prior_variance"], 1.5)
+        self.assertEqual(fit_config["fednp_stability_eps"], 1e-5)
+
+    def test_fedcurv_builder_creates_strategy(self) -> None:
+        from fl_baselines.algorithms.fedcurv import FedCurvBuilder, FedCurvStrategy
+
+        config = ExperimentConfig.from_run_config(
+            {
+                "algorithm": "fedcurv",
+                "num-supernodes": 4,
+                "fedcurv-lambda": 0.4,
+                "fedcurv-fisher-batches": 3,
+                "fedcurv-stability-eps": 1e-6,
+            }
+        )
+        model = torch.nn.Linear(3, 2)
+
+        strategy = FedCurvBuilder().build_strategy(config, model, evaluate_fn=None)
+        fit_config = strategy.on_fit_config_fn(2)
+
+        self.assertIsInstance(strategy, FedCurvStrategy)
+        self.assertEqual(strategy.min_fit_clients, 4)
+        self.assertEqual(fit_config["algorithm"], "fedcurv")
+        self.assertEqual(fit_config["fedcurv_lambda"], 0.4)
+        self.assertEqual(fit_config["fedcurv_fisher_batches"], 3)
+        self.assertEqual(fit_config["fedcurv_stability_eps"], 1e-6)
+
+    def test_fedmmd_builder_creates_strategy(self) -> None:
+        from fl_baselines.algorithms.fedmmd import FedMMDBuilder, FedMMDStrategy
+
+        config = ExperimentConfig.from_run_config(
+            {
+                "algorithm": "fedmmd",
+                "num-supernodes": 4,
+                "fedmmd-sigma": 0.5,
+                "fedmmd-sknq-threshold": 0.4,
+                "fedmmd-min-clients": 2,
+                "fedmmd-entropy-eps": 1e-8,
+            }
+        )
+        model = torch.nn.Linear(3, 2)
+
+        strategy = FedMMDBuilder().build_strategy(config, model, evaluate_fn=None)
+        fit_config = strategy.on_fit_config_fn(2)
+
+        self.assertIsInstance(strategy, FedMMDStrategy)
+        self.assertEqual(strategy.min_fit_clients, 4)
+        self.assertEqual(fit_config["algorithm"], "fedmmd")
+        self.assertEqual(fit_config["fedmmd_sigma"], 0.5)
+        self.assertEqual(fit_config["fedmmd_sknq_threshold"], 0.4)
+        self.assertEqual(fit_config["fedmmd_min_clients"], 2)
+        self.assertEqual(fit_config["fedmmd_entropy_eps"], 1e-8)
+
     def test_fedntd_builder_creates_strategy(self) -> None:
         config = ExperimentConfig.from_run_config(
             {"num-supernodes": 4, "fedntd-beta": 1.2, "fedntd-temperature": 2.0}
@@ -1289,6 +1526,98 @@ class ModelAndAlgorithmTest(unittest.TestCase):
                 model = model_builder.build_model(config)
                 strategy = FedNTDBuilder().build_strategy(config, model, evaluate_fn=None)
                 self.assertEqual(strategy.on_fit_config_fn(1)["algorithm"], "fedntd")
+
+    def test_fedlc_builder_creates_strategy(self) -> None:
+        config = ExperimentConfig.from_run_config(
+            {"num-supernodes": 4, "fedlc-tau": 0.5, "fedlc-epsilon": 1e-4}
+        )
+        model = MnistCnnBuilder().build_model(config)
+
+        strategy = FedLCBuilder().build_strategy(config, model, evaluate_fn=None)
+        fit_config = strategy.on_fit_config_fn(1)
+
+        self.assertEqual(strategy.min_fit_clients, 4)
+        self.assertEqual(fit_config["algorithm"], "fedlc")
+        self.assertEqual(fit_config["fedlc_tau"], 0.5)
+        self.assertEqual(fit_config["fedlc_epsilon"], 1e-4)
+        self.assertEqual(fit_config["num_classes"], 10)
+
+    def test_fedrs_builder_creates_strategy(self) -> None:
+        config = ExperimentConfig.from_run_config(
+            {"num-supernodes": 4, "fedrs-alpha": 0.5}
+        )
+        model = MnistCnnBuilder().build_model(config)
+
+        strategy = FedRSBuilder().build_strategy(config, model, evaluate_fn=None)
+        fit_config = strategy.on_fit_config_fn(1)
+
+        self.assertIsInstance(strategy, FedAvg)
+        self.assertEqual(strategy.min_fit_clients, 4)
+        self.assertEqual(fit_config["algorithm"], "fedrs")
+        self.assertEqual(fit_config["fedrs_alpha"], 0.5)
+        self.assertEqual(fit_config["num_classes"], 10)
+
+    def test_fedlc_builder_supports_current_models(self) -> None:
+        cases = [
+            (MnistCnnBuilder(), {}),
+            (LeNetBuilder(), {}),
+            (
+                ResNet9Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                ResNet18Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                ResNet34Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                InceptionBuilder(),
+                {"input-channels": 3, "input-height": 75, "input-width": 75},
+            ),
+        ]
+
+        for model_builder, overrides in cases:
+            with self.subTest(model=model_builder.name):
+                config = ExperimentConfig.from_run_config(
+                    {"algorithm": "fedlc", "num-supernodes": 2, **overrides}
+                )
+                model = model_builder.build_model(config)
+                strategy = FedLCBuilder().build_strategy(config, model, evaluate_fn=None)
+                self.assertEqual(strategy.on_fit_config_fn(1)["algorithm"], "fedlc")
+
+    def test_fedrs_builder_supports_current_models(self) -> None:
+        cases = [
+            (MnistCnnBuilder(), {}),
+            (LeNetBuilder(), {}),
+            (
+                ResNet9Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                ResNet18Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                ResNet34Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                InceptionBuilder(),
+                {"input-channels": 3, "input-height": 75, "input-width": 75},
+            ),
+        ]
+
+        for model_builder, overrides in cases:
+            with self.subTest(model=model_builder.name):
+                config = ExperimentConfig.from_run_config(
+                    {"algorithm": "fedrs", "num-supernodes": 2, **overrides}
+                )
+                model = model_builder.build_model(config)
+                strategy = FedRSBuilder().build_strategy(config, model, evaluate_fn=None)
+                self.assertEqual(strategy.on_fit_config_fn(1)["algorithm"], "fedrs")
 
     def test_ditto_builder_creates_strategy(self) -> None:
         config = ExperimentConfig.from_run_config(
@@ -1388,6 +1717,64 @@ class ModelAndAlgorithmTest(unittest.TestCase):
                 model = model_builder.build_model(config)
                 strategy = PFedMeBuilder().build_strategy(config, model, evaluate_fn=None)
                 self.assertEqual(strategy.on_fit_config_fn(1)["algorithm"], "pfedme")
+
+    def test_apfl_builder_creates_strategy(self) -> None:
+        from fl_baselines.algorithms.apfl import APFLBuilder
+
+        config = ExperimentConfig.from_run_config(
+            {
+                "algorithm": "apfl",
+                "num-supernodes": 4,
+                "apfl-alpha": 0.6,
+                "apfl-personal-learning-rate": 0.02,
+                "apfl-adaptive-alpha": False,
+                "apfl-alpha-learning-rate": 0.01,
+            }
+        )
+        model = MnistCnnBuilder().build_model(config)
+
+        strategy = APFLBuilder().build_strategy(config, model, evaluate_fn=None)
+        fit_config = strategy.on_fit_config_fn(1)
+
+        self.assertEqual(strategy.min_fit_clients, 4)
+        self.assertEqual(fit_config["algorithm"], "apfl")
+        self.assertEqual(fit_config["apfl_alpha"], 0.6)
+        self.assertEqual(fit_config["apfl_personal_learning_rate"], 0.02)
+        self.assertFalse(fit_config["apfl_adaptive_alpha"])
+        self.assertEqual(fit_config["apfl_alpha_learning_rate"], 0.01)
+
+    def test_apfl_builder_supports_current_models(self) -> None:
+        from fl_baselines.algorithms.apfl import APFLBuilder
+
+        cases = [
+            (MnistCnnBuilder(), {}),
+            (LeNetBuilder(), {}),
+            (
+                ResNet9Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                ResNet18Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                ResNet34Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                InceptionBuilder(),
+                {"input-channels": 3, "input-height": 75, "input-width": 75},
+            ),
+        ]
+
+        for model_builder, overrides in cases:
+            with self.subTest(model=model_builder.name):
+                config = ExperimentConfig.from_run_config(
+                    {"algorithm": "apfl", "num-supernodes": 2, **overrides}
+                )
+                model = model_builder.build_model(config)
+                strategy = APFLBuilder().build_strategy(config, model, evaluate_fn=None)
+                self.assertEqual(strategy.on_fit_config_fn(1)["algorithm"], "apfl")
 
     def test_fednova_builder_creates_strategy(self) -> None:
         config = ExperimentConfig.from_run_config(
@@ -2859,7 +3246,7 @@ class ModelAndAlgorithmTest(unittest.TestCase):
             )
         )
 
-    def test_fedproto_strategy_aggregates_prototypes_by_class(self) -> None:
+    def test_fedproto_strategy_aggregates_prototypes_by_class_without_model_averaging(self) -> None:
         model = torch.nn.Linear(2, 1, bias=False)
         initial_parameters = [np.array([[1.0, 2.0]], dtype=np.float32)]
         initial_prototypes = np.zeros((3, 2), dtype=np.float32)
@@ -2906,11 +3293,166 @@ class ModelAndAlgorithmTest(unittest.TestCase):
 
             aggregated_parameters, _ = strategy.aggregate_fit(1, results, [])
 
-        expected_model = (first_model[0] + 3.0 * second_model[0]) / 4.0
-        np.testing.assert_allclose(parameters_to_ndarrays(aggregated_parameters)[0], expected_model)
+        np.testing.assert_allclose(
+            parameters_to_ndarrays(aggregated_parameters)[0],
+            initial_parameters[0],
+        )
         np.testing.assert_allclose(strategy.global_prototypes[0], np.array([2.0, 2.0], dtype=np.float32))
         np.testing.assert_allclose(strategy.global_prototypes[1], np.array([3.0, 3.0], dtype=np.float32))
         np.testing.assert_allclose(strategy.global_prototypes[2], np.array([2.0, 2.0], dtype=np.float32))
+
+    def test_fednp_strategy_aggregates_latent_statistics(self) -> None:
+        from fl_baselines.algorithms.fednp import FedNPStrategy
+
+        model = torch.nn.Linear(2, 1, bias=False)
+        initial_parameters = [np.array([[1.0, 2.0]], dtype=np.float32)]
+        initial_mean = np.zeros(2, dtype=np.float32)
+        initial_var = np.ones(2, dtype=np.float32)
+
+        with tempfile.TemporaryDirectory() as output_dir:
+            strategy = FedNPStrategy(
+                fraction_fit=1.0,
+                fraction_evaluate=1.0,
+                min_fit_clients=2,
+                min_evaluate_clients=2,
+                min_available_clients=2,
+                initial_parameters=ndarrays_to_parameters(initial_parameters),
+                latent_mean=initial_mean,
+                latent_var=initial_var,
+                prior_variance=1.0,
+                model_parameter_count=1,
+                checkpoint_model=model,
+                output_dir=output_dir,
+            )
+            first_payload = ndarrays_to_parameters(
+                [
+                    np.array([[3.0, 5.0]], dtype=np.float32),
+                    np.array([4.0, 2.0], dtype=np.float32),
+                    np.array([10.0, 8.0], dtype=np.float32),
+                    np.array([2.0], dtype=np.float32),
+                ]
+            )
+            second_payload = ndarrays_to_parameters(
+                [
+                    np.array([[5.0, 9.0]], dtype=np.float32),
+                    np.array([6.0, 10.0], dtype=np.float32),
+                    np.array([18.0, 34.0], dtype=np.float32),
+                    np.array([2.0], dtype=np.float32),
+                ]
+            )
+            aggregated_parameters, _ = strategy.aggregate_fit(
+                1,
+                [
+                    (None, FitRes(Status(Code.OK, ""), first_payload, 1, {})),
+                    (None, FitRes(Status(Code.OK, ""), second_payload, 3, {})),
+                ],
+                [],
+            )
+
+        expected_model = (
+            np.array([[3.0, 5.0]], dtype=np.float32)
+            + 3.0 * np.array([[5.0, 9.0]], dtype=np.float32)
+        ) / 4.0
+        np.testing.assert_allclose(parameters_to_ndarrays(aggregated_parameters)[0], expected_model)
+        np.testing.assert_allclose(strategy.latent_mean, np.array([2.5, 3.0], dtype=np.float32))
+        np.testing.assert_allclose(strategy.latent_var, np.array([0.75, 1.5], dtype=np.float32))
+
+    def test_fedcurv_strategy_aggregates_curvature_statistics(self) -> None:
+        from fl_baselines.algorithms.fedcurv import FedCurvStrategy
+
+        model = torch.nn.Linear(2, 1, bias=False)
+        initial_parameters = [np.array([[1.0, 2.0]], dtype=np.float32)]
+
+        with tempfile.TemporaryDirectory() as output_dir:
+            strategy = FedCurvStrategy(
+                fraction_fit=1.0,
+                fraction_evaluate=1.0,
+                min_fit_clients=2,
+                min_evaluate_clients=2,
+                min_available_clients=2,
+                initial_parameters=ndarrays_to_parameters(initial_parameters),
+                curvature_aggregate=[np.zeros((1, 2), dtype=np.float32)],
+                weighted_parameter_aggregate=[np.zeros((1, 2), dtype=np.float32)],
+                model_parameter_count=1,
+                checkpoint_model=model,
+                output_dir=output_dir,
+            )
+            first_payload = ndarrays_to_parameters(
+                [
+                    np.array([[3.0, 5.0]], dtype=np.float32),
+                    np.array([[2.0, 1.0]], dtype=np.float32),
+                    np.array([[6.0, 5.0]], dtype=np.float32),
+                ]
+            )
+            second_payload = ndarrays_to_parameters(
+                [
+                    np.array([[5.0, 9.0]], dtype=np.float32),
+                    np.array([[4.0, 3.0]], dtype=np.float32),
+                    np.array([[20.0, 27.0]], dtype=np.float32),
+                ]
+            )
+            aggregated_parameters, _ = strategy.aggregate_fit(
+                1,
+                [
+                    (None, FitRes(Status(Code.OK, ""), first_payload, 1, {})),
+                    (None, FitRes(Status(Code.OK, ""), second_payload, 3, {})),
+                ],
+                [],
+            )
+
+        expected_model = (
+            np.array([[3.0, 5.0]], dtype=np.float32)
+            + np.array([[5.0, 9.0]], dtype=np.float32)
+        ) / 2.0
+        np.testing.assert_allclose(parameters_to_ndarrays(aggregated_parameters)[0], expected_model)
+        np.testing.assert_allclose(
+            strategy.curvature_aggregate[0],
+            np.array([[6.0, 4.0]], dtype=np.float32),
+        )
+        np.testing.assert_allclose(
+            strategy.weighted_parameter_aggregate[0],
+            np.array([[26.0, 32.0]], dtype=np.float32),
+        )
+
+    def test_fedmmd_strategy_downweights_outlier_models(self) -> None:
+        from fl_baselines.algorithms.fedmmd import FedMMDStrategy
+
+        model = torch.nn.Linear(2, 1, bias=False)
+        initial_parameters = [np.array([[0.0, 0.0]], dtype=np.float32)]
+
+        with tempfile.TemporaryDirectory() as output_dir:
+            strategy = FedMMDStrategy(
+                fraction_fit=1.0,
+                fraction_evaluate=1.0,
+                min_fit_clients=3,
+                min_evaluate_clients=3,
+                min_available_clients=3,
+                initial_parameters=ndarrays_to_parameters(initial_parameters),
+                sigma=0.5,
+                sknq_threshold=0.4,
+                min_clients=2,
+                entropy_eps=1e-8,
+                checkpoint_model=model,
+                output_dir=output_dir,
+            )
+            first_payload = ndarrays_to_parameters([np.array([[0.0, 0.0]], dtype=np.float32)])
+            second_payload = ndarrays_to_parameters([np.array([[0.1, 0.1]], dtype=np.float32)])
+            outlier_payload = ndarrays_to_parameters([np.array([[8.0, 8.0]], dtype=np.float32)])
+
+            aggregated_parameters, _ = strategy.aggregate_fit(
+                1,
+                [
+                    (None, FitRes(Status(Code.OK, ""), first_payload, 5, {})),
+                    (None, FitRes(Status(Code.OK, ""), second_payload, 5, {})),
+                    (None, FitRes(Status(Code.OK, ""), outlier_payload, 5, {})),
+                ],
+                [],
+            )
+
+        aggregated = parameters_to_ndarrays(aggregated_parameters)[0]
+        self.assertLess(float(aggregated.max()), 1.0)
+        self.assertGreaterEqual(len(strategy.last_client_weights), 2)
+        self.assertNotIn(2, strategy.last_selected_indices)
 
     def test_fedexp_strategy_applies_extrapolation_step(self) -> None:
         initial = [np.array([[0.0]], dtype=np.float32)]
@@ -3438,6 +3980,212 @@ class ModelAndAlgorithmTest(unittest.TestCase):
         self.assertEqual(updated_payload[-1].shape, (3,))
         self.assertIn("train_loss", metrics)
         self.assertIn("train_accuracy", metrics)
+
+    def test_fedproto_client_fit_reuses_persisted_local_model(self) -> None:
+        with tempfile.TemporaryDirectory() as output_dir:
+            config = ExperimentConfig.from_run_config(
+                {
+                    "algorithm": "fedproto",
+                    "num-classes": 3,
+                    "output-dir": output_dir,
+                }
+            )
+            model = torch.nn.Linear(3, 3)
+            loader = DataLoader(
+                TensorDataset(
+                    torch.eye(3, dtype=torch.float32),
+                    torch.tensor([0, 1, 2], dtype=torch.long),
+                ),
+                batch_size=3,
+            )
+            client = TorchFlowerClient(
+                model,
+                loaders=type("Loaders", (), {"train": loader, "test": loader})(),
+                config=config,
+                client_id="fedproto-2",
+            )
+
+            persisted_model = torch.nn.Linear(3, 3)
+            with torch.no_grad():
+                persisted_model.weight.fill_(5.0)
+                persisted_model.bias.fill_(2.0)
+            persisted_path = Path(output_dir) / "fedproto_clients" / "fedproto-2" / "local_model.pt"
+            persisted_path.parent.mkdir(parents=True, exist_ok=True)
+            torch.save(persisted_model.state_dict(), persisted_path)
+
+            incoming_model = torch.nn.Linear(3, 3)
+            with torch.no_grad():
+                incoming_model.weight.zero_()
+                incoming_model.bias.zero_()
+            global_prototypes = np.zeros((3, 3), dtype=np.float32)
+
+            updated_payload, _, _ = client.fit(
+                get_model_parameters(incoming_model) + [global_prototypes],
+                {
+                    "algorithm": "fedproto",
+                    "local_epochs": 0,
+                    "learning_rate": 0.1,
+                    "fedproto_lambda": 0.0,
+                },
+            )
+
+        np.testing.assert_allclose(updated_payload[0], np.full((3, 3), 5.0, dtype=np.float32))
+        np.testing.assert_allclose(updated_payload[1], np.full((3,), 2.0, dtype=np.float32))
+
+    def test_fedmeta_client_fit_returns_meta_gradient_payload(self) -> None:
+        config = ExperimentConfig.from_run_config(
+            {
+                "algorithm": "fedmeta",
+                "num-classes": 2,
+                "fedmeta-support-fraction": 0.5,
+                "fedmeta-inner-learning-rate": 0.1,
+                "fedmeta-inner-steps": 1,
+            }
+        )
+        model = torch.nn.Linear(2, 2)
+        loader = DataLoader(
+            TensorDataset(
+                torch.tensor(
+                    [[1.0, 0.0], [0.0, 1.0], [1.0, 1.0], [-1.0, 0.0]],
+                    dtype=torch.float32,
+                ),
+                torch.tensor([0, 1, 0, 1], dtype=torch.long),
+            ),
+            batch_size=4,
+        )
+        client = TorchFlowerClient(
+            model,
+            loaders=type("Loaders", (), {"train": loader, "test": loader})(),
+            config=config,
+            client_id="fedmeta-1",
+        )
+        initial_parameters = get_model_parameters(model)
+
+        gradient_payload, num_examples, metrics = client.fit(
+            initial_parameters,
+            {
+                "algorithm": "fedmeta",
+                "fedmeta_method": "maml",
+                "fedmeta_inner_learning_rate": 0.1,
+                "fedmeta_support_fraction": 0.5,
+                "fedmeta_inner_steps": 1,
+                "fedmeta_first_order": True,
+            },
+        )
+
+        self.assertEqual(num_examples, 4)
+        self.assertEqual(len(gradient_payload), len(initial_parameters))
+        self.assertEqual(gradient_payload[0].shape, initial_parameters[0].shape)
+        self.assertTrue(any(np.any(np.abs(gradient) > 0) for gradient in gradient_payload))
+        self.assertIn("meta_query_loss", metrics)
+        self.assertIn("meta_query_accuracy", metrics)
+
+    def test_fednp_client_fit_returns_latent_statistics_payload(self) -> None:
+        config = ExperimentConfig.from_run_config(
+            {
+                "algorithm": "fednp",
+                "num-classes": 3,
+                "fednp-lambda": 0.6,
+                "fednp-prior-variance": 1.5,
+            }
+        )
+        model = torch.nn.Linear(3, 3)
+        loader = DataLoader(
+            TensorDataset(
+                torch.tensor(
+                    [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.5, 0.5, 0.0], [0.0, 0.0, 1.0]],
+                    dtype=torch.float32,
+                ),
+                torch.tensor([0, 1, 0, 2], dtype=torch.long),
+            ),
+            batch_size=2,
+        )
+        client = TorchFlowerClient(
+            model,
+            loaders=type("Loaders", (), {"train": loader, "test": loader})(),
+            config=config,
+            client_id="fednp-1",
+        )
+        initial_parameters = get_model_parameters(model)
+        latent_mean = np.zeros(3, dtype=np.float32)
+        latent_var = np.ones(3, dtype=np.float32)
+
+        updated_payload, num_examples, metrics = client.fit(
+            initial_parameters + [latent_mean, latent_var],
+            {
+                "algorithm": "fednp",
+                "local_epochs": 1,
+                "learning_rate": 0.1,
+                "fednp_lambda": 0.6,
+                "fednp_prior_variance": 1.5,
+                "fednp_stability_eps": 1e-5,
+            },
+        )
+
+        self.assertEqual(num_examples, 4)
+        self.assertEqual(len(updated_payload), len(initial_parameters) + 3)
+        self.assertEqual(updated_payload[-3].shape, (3,))
+        self.assertEqual(updated_payload[-2].shape, (3,))
+        self.assertEqual(updated_payload[-1].shape, (1,))
+        self.assertTrue(np.isfinite(updated_payload[-3]).all())
+        self.assertTrue(np.isfinite(updated_payload[-2]).all())
+        self.assertIn("train_loss", metrics)
+        self.assertIn("train_accuracy", metrics)
+        self.assertIn("fednp_reg_loss", metrics)
+
+    def test_fedcurv_client_fit_returns_curvature_payload(self) -> None:
+        config = ExperimentConfig.from_run_config(
+            {
+                "algorithm": "fedcurv",
+                "fedcurv-lambda": 0.4,
+                "fedcurv-fisher-batches": 2,
+                "fedcurv-stability-eps": 1e-6,
+            }
+        )
+        model = torch.nn.Linear(3, 3)
+        loader = DataLoader(
+            TensorDataset(
+                torch.tensor(
+                    [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.5, 0.5, 0.0], [0.0, 0.0, 1.0]],
+                    dtype=torch.float32,
+                ),
+                torch.tensor([0, 1, 0, 2], dtype=torch.long),
+            ),
+            batch_size=2,
+        )
+        client = TorchFlowerClient(
+            model,
+            loaders=type("Loaders", (), {"train": loader, "test": loader})(),
+            config=config,
+            client_id="fedcurv-1",
+        )
+        initial_parameters = get_model_parameters(model)
+        global_u = [np.zeros_like(array) for array in initial_parameters]
+        global_v = [np.zeros_like(array) for array in initial_parameters]
+
+        updated_payload, num_examples, metrics = client.fit(
+            initial_parameters + global_u + global_v,
+            {
+                "algorithm": "fedcurv",
+                "local_epochs": 1,
+                "learning_rate": 0.1,
+                "fedcurv_lambda": 0.4,
+                "fedcurv_fisher_batches": 2,
+                "fedcurv_stability_eps": 1e-6,
+            },
+        )
+
+        self.assertEqual(num_examples, 4)
+        self.assertEqual(len(updated_payload), len(initial_parameters) * 3)
+        curvature_payload = updated_payload[len(initial_parameters) : 2 * len(initial_parameters)]
+        weighted_payload = updated_payload[2 * len(initial_parameters) :]
+        self.assertTrue(all(array.shape == param.shape for array, param in zip(curvature_payload, initial_parameters)))
+        self.assertTrue(all(array.shape == param.shape for array, param in zip(weighted_payload, initial_parameters)))
+        self.assertTrue(all(np.isfinite(array).all() for array in curvature_payload))
+        self.assertTrue(all(np.isfinite(array).all() for array in weighted_payload))
+        self.assertIn("train_loss", metrics)
+        self.assertIn("train_accuracy", metrics)
+        self.assertIn("fedcurv_reg_loss", metrics)
 
     def test_train_fedgen_client_returns_local_mask_and_metrics(self) -> None:
         model = torch.nn.Linear(3, 2)
@@ -3993,6 +4741,104 @@ class ModelAndAlgorithmTest(unittest.TestCase):
         self.assertEqual(len(updated_parameters), len(initial_parameters))
         self.assertEqual(metrics["feddecorr_loss"], 0.25)
 
+    def test_torch_flower_client_routes_fedlc_to_dedicated_trainer(self) -> None:
+        config = ExperimentConfig.from_run_config(
+            {
+                "algorithm": "fedlc",
+                "local-epochs": 1,
+                "learning-rate": 0.05,
+                "num-classes": 2,
+                "fedlc-tau": 0.5,
+                "fedlc-epsilon": 1e-4,
+            }
+        )
+        model = torch.nn.Linear(3, 2)
+        loader = DataLoader(
+            TensorDataset(torch.ones(4, 3), torch.zeros(4, dtype=torch.long)),
+            batch_size=2,
+        )
+        client = TorchFlowerClient(
+            model,
+            loaders=type("Loaders", (), {"train": loader, "test": loader})(),
+            config=config,
+            client_id="fedlc-route",
+        )
+        initial_parameters = get_model_parameters(model)
+
+        with patch.object(
+            torch_client_module,
+            "train_fedlc_client",
+            return_value={
+                "train_loss": 1.0,
+                "train_accuracy": 0.5,
+                "fedlc_loss": 1.0,
+            },
+        ) as mocked_trainer:
+            updated_parameters, num_examples, metrics = client.fit(
+                initial_parameters,
+                {
+                    "algorithm": "fedlc",
+                    "local_epochs": 1,
+                    "learning_rate": 0.05,
+                    "num_classes": 2,
+                    "fedlc_tau": 0.5,
+                    "fedlc_epsilon": 1e-4,
+                },
+            )
+
+        mocked_trainer.assert_called_once()
+        self.assertEqual(num_examples, len(loader.dataset))
+        self.assertEqual(len(updated_parameters), len(initial_parameters))
+        self.assertEqual(metrics["fedlc_loss"], 1.0)
+
+    def test_torch_flower_client_routes_fedrs_to_dedicated_trainer(self) -> None:
+        config = ExperimentConfig.from_run_config(
+            {
+                "algorithm": "fedrs",
+                "local-epochs": 1,
+                "learning-rate": 0.05,
+                "num-classes": 2,
+                "fedrs-alpha": 0.5,
+            }
+        )
+        model = torch.nn.Linear(3, 2)
+        loader = DataLoader(
+            TensorDataset(torch.ones(4, 3), torch.zeros(4, dtype=torch.long)),
+            batch_size=2,
+        )
+        client = TorchFlowerClient(
+            model,
+            loaders=type("Loaders", (), {"train": loader, "test": loader})(),
+            config=config,
+            client_id="fedrs-route",
+        )
+        initial_parameters = get_model_parameters(model)
+
+        with patch.object(
+            torch_client_module,
+            "train_fedrs_client",
+            return_value={
+                "train_loss": 1.0,
+                "train_accuracy": 0.5,
+                "fedrs_loss": 1.0,
+            },
+        ) as mocked_trainer:
+            updated_parameters, num_examples, metrics = client.fit(
+                initial_parameters,
+                {
+                    "algorithm": "fedrs",
+                    "local_epochs": 1,
+                    "learning_rate": 0.05,
+                    "num_classes": 2,
+                    "fedrs_alpha": 0.5,
+                },
+            )
+
+        mocked_trainer.assert_called_once()
+        self.assertEqual(num_examples, len(loader.dataset))
+        self.assertEqual(len(updated_parameters), len(initial_parameters))
+        self.assertEqual(metrics["fedrs_loss"], 1.0)
+
     def test_fedspeed_training_updates_model_parameters_and_returns_state(self) -> None:
         model = torch.nn.Linear(3, 2)
         global_model = torch.nn.Linear(3, 2)
@@ -4280,6 +5126,115 @@ class ModelAndAlgorithmTest(unittest.TestCase):
             )
         )
 
+    def test_fedlc_loss_handles_missing_classes(self) -> None:
+        logits = torch.tensor([[2.0, 0.0, 1.0], [0.0, 2.0, 1.0]])
+        targets = torch.tensor([0, 1])
+        class_counts = torch.tensor([3.0, 1.0, 0.0])
+
+        loss = fedlc_loss(logits, targets, class_counts, tau=0.5, epsilon=1e-4)
+
+        self.assertTrue(torch.isfinite(loss))
+        self.assertGreater(float(loss.item()), 0.0)
+
+    def test_fedrs_loss_handles_missing_classes(self) -> None:
+        logits = torch.tensor([[2.0, 0.0, 1.0], [0.0, 2.0, 1.0]])
+        targets = torch.tensor([0, 1])
+        class_mask = torch.tensor([1.0, 1.0, 0.0])
+
+        loss = fedrs_loss(logits, targets, class_mask, alpha=0.5)
+
+        self.assertTrue(torch.isfinite(loss))
+        self.assertGreater(float(loss.item()), 0.0)
+
+    def test_local_class_counts_counts_valid_labels(self) -> None:
+        loader = DataLoader(
+            TensorDataset(
+                torch.ones(5, 2),
+                torch.tensor([0, 1, 1, 3, -1], dtype=torch.long),
+            ),
+            batch_size=2,
+        )
+
+        counts = local_class_counts(loader, num_classes=3)
+
+        self.assertEqual(counts.tolist(), [1.0, 2.0, 0.0])
+
+    def test_observed_class_mask_marks_seen_labels(self) -> None:
+        loader = DataLoader(
+            TensorDataset(
+                torch.ones(5, 2),
+                torch.tensor([0, 1, 1, 3, -1], dtype=torch.long),
+            ),
+            batch_size=2,
+        )
+
+        mask = observed_class_mask(loader, num_classes=3)
+
+        self.assertEqual(mask.tolist(), [1.0, 1.0, 0.0])
+
+    def test_fedlc_training_updates_model_parameters(self) -> None:
+        model = torch.nn.Linear(3, 2)
+        initial_state = {
+            key: value.detach().clone() for key, value in model.state_dict().items()
+        }
+        loader = DataLoader(
+            TensorDataset(
+                torch.ones(4, 3),
+                torch.tensor([0, 0, 0, 1], dtype=torch.long),
+            ),
+            batch_size=2,
+        )
+
+        metrics = train_fedlc_client(
+            model,
+            loader,
+            epochs=1,
+            learning_rate=0.1,
+            device="cpu",
+            num_classes=2,
+            fedlc_tau=0.5,
+            fedlc_epsilon=1e-4,
+        )
+
+        self.assertIn("fedlc_loss", metrics)
+        self.assertTrue(
+            any(
+                not torch.equal(initial_state[key], model.state_dict()[key])
+                for key in initial_state
+            )
+        )
+
+    def test_fedrs_training_updates_model_parameters(self) -> None:
+        model = torch.nn.Linear(3, 2)
+        initial_state = {
+            key: value.detach().clone() for key, value in model.state_dict().items()
+        }
+        loader = DataLoader(
+            TensorDataset(
+                torch.ones(4, 3),
+                torch.tensor([0, 0, 0, 1], dtype=torch.long),
+            ),
+            batch_size=2,
+        )
+
+        metrics = train_fedrs_client(
+            model,
+            loader,
+            epochs=1,
+            learning_rate=0.1,
+            device="cpu",
+            num_classes=2,
+            fedrs_alpha=0.5,
+        )
+
+        self.assertIn("fedrs_loss", metrics)
+        self.assertTrue(
+            any(
+                not torch.equal(initial_state[key], model.state_dict()[key])
+                for key in initial_state
+            )
+        )
+
     def test_ditto_client_fit_persists_personalized_state(self) -> None:
         with tempfile.TemporaryDirectory() as output_dir:
             config = ExperimentConfig.from_run_config(
@@ -4498,6 +5453,97 @@ class ModelAndAlgorithmTest(unittest.TestCase):
                     for key in first_state
                 )
             )
+
+    def test_apfl_client_fit_persists_personalized_state_and_alpha(self) -> None:
+        with tempfile.TemporaryDirectory() as output_dir:
+            config = ExperimentConfig.from_run_config(
+                {
+                    "algorithm": "apfl",
+                    "output-dir": output_dir,
+                    "apfl-alpha": 0.6,
+                    "apfl-personal-learning-rate": 0.02,
+                    "apfl-adaptive-alpha": True,
+                    "apfl-alpha-learning-rate": 0.01,
+                }
+            )
+            model = torch.nn.Linear(3, 2)
+            loader = DataLoader(
+                TensorDataset(torch.ones(4, 3), torch.zeros(4, dtype=torch.long)),
+                batch_size=2,
+            )
+            client = TorchFlowerClient(
+                model,
+                loaders=type("Loaders", (), {"train": loader, "test": loader})(),
+                config=config,
+                client_id="apfl-1",
+            )
+            initial_parameters = get_model_parameters(model)
+
+            updated_parameters, num_examples, metrics = client.fit(
+                initial_parameters,
+                {
+                    "algorithm": "apfl",
+                    "local_epochs": 1,
+                    "learning_rate": 0.1,
+                    "apfl_alpha": 0.6,
+                    "apfl_personal_learning_rate": 0.02,
+                    "apfl_adaptive_alpha": True,
+                    "apfl_alpha_learning_rate": 0.01,
+                },
+            )
+
+            self.assertEqual(num_examples, 4)
+            self.assertEqual(len(updated_parameters), len(initial_parameters))
+            self.assertIn("train_loss", metrics)
+            self.assertIn("apfl_alpha", metrics)
+            self.assertTrue(
+                (Path(output_dir) / "apfl_clients" / "apfl-1" / "personalized.pt").exists()
+            )
+            self.assertTrue(
+                (Path(output_dir) / "apfl_clients" / "apfl-1" / "alpha.json").exists()
+            )
+
+    def test_apfl_client_evaluate_uses_personalized_mixture(self) -> None:
+        with tempfile.TemporaryDirectory() as output_dir:
+            config = ExperimentConfig.from_run_config(
+                {
+                    "algorithm": "apfl",
+                    "output-dir": output_dir,
+                    "apfl-alpha": 0.75,
+                    "apfl-personal-learning-rate": 0.02,
+                    "apfl-adaptive-alpha": False,
+                    "apfl-alpha-learning-rate": 0.01,
+                }
+            )
+            model = torch.nn.Linear(2, 2)
+            loader = DataLoader(
+                TensorDataset(torch.tensor([[1.0, 0.0]], dtype=torch.float32), torch.tensor([0])),
+                batch_size=1,
+            )
+            client = TorchFlowerClient(
+                model,
+                loaders=type("Loaders", (), {"train": loader, "test": loader})(),
+                config=config,
+                client_id="apfl-2",
+            )
+            global_model = torch.nn.Linear(2, 2)
+            personalized_model = torch.nn.Linear(2, 2)
+            with torch.no_grad():
+                global_model.weight.copy_(torch.tensor([[0.0, 0.0], [1.0, 1.0]]))
+                global_model.bias.copy_(torch.tensor([0.0, 0.0]))
+                personalized_model.weight.copy_(torch.tensor([[2.0, 0.0], [0.0, 2.0]]))
+                personalized_model.bias.copy_(torch.tensor([0.0, 0.0]))
+            client._save_apfl_personalized_model(personalized_model)
+            client._save_apfl_alpha(0.75)
+
+            loss, num_examples, metrics = client.evaluate(
+                get_model_parameters(global_model),
+                {"algorithm": "apfl"},
+            )
+
+            self.assertEqual(num_examples, 1)
+            self.assertLess(loss, 0.7)
+            self.assertEqual(metrics["accuracy"], 1.0)
 
     def test_scaffold_training_returns_control_delta(self) -> None:
         model = torch.nn.Linear(2, 2)

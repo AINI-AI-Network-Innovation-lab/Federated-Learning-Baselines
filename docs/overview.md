@@ -18,6 +18,9 @@ Phiên bản hiện tại có baseline đầu tiên:
 | --- | --- | --- | --- | --- |
 | FedAvg MNIST CNN | FedAvg | MNIST | CNN nhỏ cho ảnh 28x28 | IID, Dirichlet |
 | FedAvgM MNIST CNN | FedAvgM | MNIST | CNN nhỏ cho ảnh 28x28 | IID, Dirichlet |
+| FedAdagrad MNIST CNN | FedAdagrad | MNIST | CNN nhỏ cho ảnh 28x28 | IID, Dirichlet |
+| FedAdam MNIST CNN | FedAdam | MNIST | CNN nhỏ cho ảnh 28x28 | IID, Dirichlet |
+| FedYogi MNIST CNN | FedYogi | MNIST | CNN nhỏ cho ảnh 28x28 | IID, Dirichlet |
 | FedAdp MNIST CNN | FedAdp | MNIST | CNN nhỏ cho ảnh 28x28 | IID, Dirichlet |
 | GAMF MNIST CNN | GAMF | MNIST | CNN nhỏ cho ảnh 28x28 | IID, Dirichlet |
 | FedMA MNIST CNN | FedMA | MNIST | CNN nhỏ cho ảnh 28x28 | IID, Dirichlet |
@@ -37,7 +40,14 @@ Phiên bản hiện tại có baseline đầu tiên:
 | FedSAM MNIST CNN | FedSAM | MNIST | CNN nhỏ cho ảnh 28x28 | IID, Dirichlet |
 | FedSpeed MNIST CNN | FedSpeed | MNIST | CNN nhỏ cho ảnh 28x28 | IID, Dirichlet |
 | FedNTD MNIST CNN | FedNTD | MNIST | CNN nhỏ cho ảnh 28x28 | IID, Dirichlet |
+| FedLC MNIST CNN | FedLC | MNIST | CNN nhỏ cho ảnh 28x28 | IID, Dirichlet |
+| FedRS MNIST CNN | FedRS | MNIST | CNN nhỏ cho ảnh 28x28 | IID, Dirichlet |
 | FedProto MNIST CNN | FedProto | MNIST | CNN nhỏ cho ảnh 28x28 | IID, Dirichlet |
+| FedMeta MNIST CNN | FedMeta | MNIST | CNN nhỏ cho ảnh 28x28 | IID, Dirichlet |
+| FedCurv MNIST CNN | FedCurv | MNIST | CNN nhỏ cho ảnh 28x28 | IID, Dirichlet |
+| FedMMD MNIST CNN | FedMMD | MNIST | CNN nhỏ cho ảnh 28x28 | IID, Dirichlet |
+| FedNP MNIST CNN | FedNP | MNIST | CNN nhỏ cho ảnh 28x28 | IID, Dirichlet |
+| APFL MNIST CNN | APFL | MNIST | CNN nhỏ cho ảnh 28x28 | IID, Dirichlet |
 | FedNova MNIST CNN | FedNova | MNIST | CNN nhỏ cho ảnh 28x28 | IID, Dirichlet |
 | pFedMe MNIST CNN | pFedMe | MNIST | CNN nhỏ cho ảnh 28x28 | IID, Dirichlet |
 | FedPer MNIST CNN | FedPer | MNIST | CNN nhỏ cho ảnh 28x28 | IID, Dirichlet |

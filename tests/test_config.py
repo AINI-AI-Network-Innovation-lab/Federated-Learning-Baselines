@@ -38,6 +38,19 @@ class ExperimentConfigTest(unittest.TestCase):
                 "moon-temperature": 0.7,
                 "server-learning-rate": 0.8,
                 "server-momentum": 0.95,
+                "fedadagrad-eta": 0.15,
+                "fedadagrad-eta-l": 0.04,
+                "fedadagrad-tau": 1e-7,
+                "fedadam-eta": 0.2,
+                "fedadam-eta-l": 0.03,
+                "fedadam-beta-1": 0.8,
+                "fedadam-beta-2": 0.97,
+                "fedadam-tau": 1e-6,
+                "fedyogi-eta": 0.02,
+                "fedyogi-eta-l": 0.025,
+                "fedyogi-beta-1": 0.85,
+                "fedyogi-beta-2": 0.96,
+                "fedyogi-tau": 1e-4,
                 "fedadp-alpha": 4.0,
                 "feddyn-alpha": 0.2,
                 "feddc-alpha": 0.05,
@@ -99,8 +112,32 @@ class ExperimentConfigTest(unittest.TestCase):
                 "fedvck-enable-latent-constraints": False,
                 "fedvck-max-memory-rounds": 4,
                 "fedproto-lambda": 0.2,
+                "fedmeta-method": "meta-sgd",
+                "fedmeta-inner-learning-rate": 0.05,
+                "fedmeta-outer-learning-rate": 0.01,
+                "fedmeta-support-fraction": 0.4,
+                "fedmeta-inner-steps": 2,
+                "fedmeta-first-order": False,
+                "fedmeta-alpha-init": 0.03,
+                "fednp-lambda": 0.6,
+                "fednp-prior-variance": 1.5,
+                "fednp-stability-eps": 1e-5,
+                "fedcurv-lambda": 0.4,
+                "fedcurv-fisher-batches": 3,
+                "fedcurv-stability-eps": 1e-6,
+                "fedmmd-sigma": 0.5,
+                "fedmmd-sknq-threshold": 0.4,
+                "fedmmd-min-clients": 2,
+                "fedmmd-entropy-eps": 1e-8,
+                "apfl-alpha": 0.6,
+                "apfl-personal-learning-rate": 0.02,
+                "apfl-adaptive-alpha": False,
+                "apfl-alpha-learning-rate": 0.01,
                 "fedntd-beta": 1.2,
                 "fedntd-temperature": 2.0,
+                "fedlc-tau": 0.5,
+                "fedlc-epsilon": 1e-4,
+                "fedrs-alpha": 0.5,
                 "ditto-lambda": 0.3,
                 "pfedme-lambda": 15.0,
                 "pfedme-beta": 0.7,
@@ -142,6 +179,19 @@ class ExperimentConfigTest(unittest.TestCase):
         self.assertEqual(config.moon_temperature, 0.7)
         self.assertEqual(config.server_learning_rate, 0.8)
         self.assertEqual(config.server_momentum, 0.95)
+        self.assertEqual(config.fedadagrad_eta, 0.15)
+        self.assertEqual(config.fedadagrad_eta_l, 0.04)
+        self.assertEqual(config.fedadagrad_tau, 1e-7)
+        self.assertEqual(config.fedadam_eta, 0.2)
+        self.assertEqual(config.fedadam_eta_l, 0.03)
+        self.assertEqual(config.fedadam_beta_1, 0.8)
+        self.assertEqual(config.fedadam_beta_2, 0.97)
+        self.assertEqual(config.fedadam_tau, 1e-6)
+        self.assertEqual(config.fedyogi_eta, 0.02)
+        self.assertEqual(config.fedyogi_eta_l, 0.025)
+        self.assertEqual(config.fedyogi_beta_1, 0.85)
+        self.assertEqual(config.fedyogi_beta_2, 0.96)
+        self.assertEqual(config.fedyogi_tau, 1e-4)
         self.assertEqual(config.fedadp_alpha, 4.0)
         self.assertEqual(config.feddyn_alpha, 0.2)
         self.assertEqual(config.feddc_alpha, 0.05)
@@ -203,8 +253,32 @@ class ExperimentConfigTest(unittest.TestCase):
         self.assertFalse(config.fedvck_enable_latent_constraints)
         self.assertEqual(config.fedvck_max_memory_rounds, 4)
         self.assertEqual(config.fedproto_lambda, 0.2)
+        self.assertEqual(config.fedmeta_method, "meta-sgd")
+        self.assertEqual(config.fedmeta_inner_learning_rate, 0.05)
+        self.assertEqual(config.fedmeta_outer_learning_rate, 0.01)
+        self.assertEqual(config.fedmeta_support_fraction, 0.4)
+        self.assertEqual(config.fedmeta_inner_steps, 2)
+        self.assertFalse(config.fedmeta_first_order)
+        self.assertEqual(config.fedmeta_alpha_init, 0.03)
+        self.assertEqual(config.fednp_lambda, 0.6)
+        self.assertEqual(config.fednp_prior_variance, 1.5)
+        self.assertEqual(config.fednp_stability_eps, 1e-5)
+        self.assertEqual(config.fedcurv_lambda, 0.4)
+        self.assertEqual(config.fedcurv_fisher_batches, 3)
+        self.assertEqual(config.fedcurv_stability_eps, 1e-6)
+        self.assertEqual(config.fedmmd_sigma, 0.5)
+        self.assertEqual(config.fedmmd_sknq_threshold, 0.4)
+        self.assertEqual(config.fedmmd_min_clients, 2)
+        self.assertEqual(config.fedmmd_entropy_eps, 1e-8)
+        self.assertEqual(config.apfl_alpha, 0.6)
+        self.assertEqual(config.apfl_personal_learning_rate, 0.02)
+        self.assertFalse(config.apfl_adaptive_alpha)
+        self.assertEqual(config.apfl_alpha_learning_rate, 0.01)
         self.assertEqual(config.fedntd_beta, 1.2)
         self.assertEqual(config.fedntd_temperature, 2.0)
+        self.assertEqual(config.fedlc_tau, 0.5)
+        self.assertEqual(config.fedlc_epsilon, 1e-4)
+        self.assertEqual(config.fedrs_alpha, 0.5)
         self.assertEqual(config.ditto_lambda, 0.3)
         self.assertEqual(config.pfedme_lambda, 15.0)
         self.assertEqual(config.pfedme_beta, 0.7)
@@ -254,6 +328,45 @@ class ExperimentConfigTest(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "server-momentum must be non-negative"):
             ExperimentConfig.from_run_config({"server-momentum": -0.1})
+
+        with self.assertRaisesRegex(ValueError, "fedadagrad-eta must be positive"):
+            ExperimentConfig.from_run_config({"fedadagrad-eta": 0.0})
+
+        with self.assertRaisesRegex(ValueError, "fedadagrad-eta-l must be positive"):
+            ExperimentConfig.from_run_config({"fedadagrad-eta-l": 0.0})
+
+        with self.assertRaisesRegex(ValueError, "fedadagrad-tau must be positive"):
+            ExperimentConfig.from_run_config({"fedadagrad-tau": 0.0})
+
+        with self.assertRaisesRegex(ValueError, "fedadam-eta must be positive"):
+            ExperimentConfig.from_run_config({"fedadam-eta": 0.0})
+
+        with self.assertRaisesRegex(ValueError, "fedadam-eta-l must be positive"):
+            ExperimentConfig.from_run_config({"fedadam-eta-l": 0.0})
+
+        with self.assertRaisesRegex(ValueError, "fedadam-beta-1 must be in"):
+            ExperimentConfig.from_run_config({"fedadam-beta-1": 1.0})
+
+        with self.assertRaisesRegex(ValueError, "fedadam-beta-2 must be in"):
+            ExperimentConfig.from_run_config({"fedadam-beta-2": -0.1})
+
+        with self.assertRaisesRegex(ValueError, "fedadam-tau must be positive"):
+            ExperimentConfig.from_run_config({"fedadam-tau": 0.0})
+
+        with self.assertRaisesRegex(ValueError, "fedyogi-eta must be positive"):
+            ExperimentConfig.from_run_config({"fedyogi-eta": 0.0})
+
+        with self.assertRaisesRegex(ValueError, "fedyogi-eta-l must be positive"):
+            ExperimentConfig.from_run_config({"fedyogi-eta-l": 0.0})
+
+        with self.assertRaisesRegex(ValueError, "fedyogi-beta-1 must be in"):
+            ExperimentConfig.from_run_config({"fedyogi-beta-1": 1.0})
+
+        with self.assertRaisesRegex(ValueError, "fedyogi-beta-2 must be in"):
+            ExperimentConfig.from_run_config({"fedyogi-beta-2": -0.1})
+
+        with self.assertRaisesRegex(ValueError, "fedyogi-tau must be positive"):
+            ExperimentConfig.from_run_config({"fedyogi-tau": 0.0})
 
         with self.assertRaisesRegex(ValueError, "fedadp-alpha must be positive"):
             ExperimentConfig.from_run_config({"fedadp-alpha": 0.0})
@@ -421,11 +534,70 @@ class ExperimentConfigTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "fedproto-lambda must be non-negative"):
             ExperimentConfig.from_run_config({"fedproto-lambda": -0.1})
 
+        with self.assertRaisesRegex(ValueError, "fedmeta-method must be one of"):
+            ExperimentConfig.from_run_config({"fedmeta-method": "bad"})
+
+        with self.assertRaisesRegex(ValueError, "fedmeta-inner-learning-rate must be positive"):
+            ExperimentConfig.from_run_config({"fedmeta-inner-learning-rate": 0.0})
+
+        with self.assertRaisesRegex(ValueError, "fedmeta-outer-learning-rate must be positive"):
+            ExperimentConfig.from_run_config({"fedmeta-outer-learning-rate": 0.0})
+
+        with self.assertRaisesRegex(ValueError, "fedmeta-support-fraction must be in"):
+            ExperimentConfig.from_run_config({"fedmeta-support-fraction": 1.0})
+
+        with self.assertRaisesRegex(ValueError, "fedmeta-inner-steps must be positive"):
+            ExperimentConfig.from_run_config({"fedmeta-inner-steps": 0})
+
+        with self.assertRaisesRegex(ValueError, "fedmeta-alpha-init must be positive"):
+            ExperimentConfig.from_run_config({"fedmeta-alpha-init": 0.0})
+
+        with self.assertRaisesRegex(ValueError, "fednp-lambda must be non-negative"):
+            ExperimentConfig.from_run_config({"fednp-lambda": -0.1})
+
+        with self.assertRaisesRegex(ValueError, "fednp-prior-variance must be positive"):
+            ExperimentConfig.from_run_config({"fednp-prior-variance": 0.0})
+
+        with self.assertRaisesRegex(ValueError, "fednp-stability-eps must be positive"):
+            ExperimentConfig.from_run_config({"fednp-stability-eps": 0.0})
+        with self.assertRaisesRegex(ValueError, "fedcurv-lambda must be non-negative"):
+            ExperimentConfig.from_run_config({"fedcurv-lambda": -0.1})
+        with self.assertRaisesRegex(ValueError, "fedcurv-fisher-batches must be positive"):
+            ExperimentConfig.from_run_config({"fedcurv-fisher-batches": 0})
+        with self.assertRaisesRegex(ValueError, "fedcurv-stability-eps must be positive"):
+            ExperimentConfig.from_run_config({"fedcurv-stability-eps": 0.0})
+        with self.assertRaisesRegex(ValueError, "fedmmd-sigma must be positive"):
+            ExperimentConfig.from_run_config({"fedmmd-sigma": 0.0})
+        with self.assertRaisesRegex(ValueError, "fedmmd-sknq-threshold must be in"):
+            ExperimentConfig.from_run_config({"fedmmd-sknq-threshold": 1.0})
+        with self.assertRaisesRegex(ValueError, "fedmmd-min-clients must be at least 1"):
+            ExperimentConfig.from_run_config({"fedmmd-min-clients": 0})
+        with self.assertRaisesRegex(ValueError, "fedmmd-entropy-eps must be positive"):
+            ExperimentConfig.from_run_config({"fedmmd-entropy-eps": 0.0})
+        with self.assertRaisesRegex(ValueError, "apfl-alpha must be in"):
+            ExperimentConfig.from_run_config({"apfl-alpha": 1.0})
+        with self.assertRaisesRegex(ValueError, "apfl-personal-learning-rate must be positive"):
+            ExperimentConfig.from_run_config({"apfl-personal-learning-rate": 0.0})
+        with self.assertRaisesRegex(ValueError, "apfl-alpha-learning-rate must be positive"):
+            ExperimentConfig.from_run_config({"apfl-alpha-learning-rate": 0.0})
+
         with self.assertRaisesRegex(ValueError, "fedntd-beta must be non-negative"):
             ExperimentConfig.from_run_config({"fedntd-beta": -0.1})
 
         with self.assertRaisesRegex(ValueError, "fedntd-temperature must be positive"):
             ExperimentConfig.from_run_config({"fedntd-temperature": 0.0})
+
+        with self.assertRaisesRegex(ValueError, "fedlc-tau must be non-negative"):
+            ExperimentConfig.from_run_config({"fedlc-tau": -0.1})
+
+        with self.assertRaisesRegex(ValueError, "fedlc-epsilon must be positive"):
+            ExperimentConfig.from_run_config({"fedlc-epsilon": 0.0})
+
+        with self.assertRaisesRegex(ValueError, "fedrs-alpha must be in"):
+            ExperimentConfig.from_run_config({"fedrs-alpha": -0.1})
+
+        with self.assertRaisesRegex(ValueError, "fedrs-alpha must be in"):
+            ExperimentConfig.from_run_config({"fedrs-alpha": 1.1})
 
         with self.assertRaisesRegex(ValueError, "ditto-lambda must be non-negative"):
             ExperimentConfig.from_run_config({"ditto-lambda": -0.1})

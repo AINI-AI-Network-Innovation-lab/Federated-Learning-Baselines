@@ -59,6 +59,19 @@ class ExperimentConfig:
     moon_temperature: float = 0.5
     server_learning_rate: float = 1.0
     server_momentum: float = 0.9
+    fedadagrad_eta: float = 0.1
+    fedadagrad_eta_l: float = 0.1
+    fedadagrad_tau: float = 1e-9
+    fedadam_eta: float = 0.1
+    fedadam_eta_l: float = 0.1
+    fedadam_beta_1: float = 0.9
+    fedadam_beta_2: float = 0.99
+    fedadam_tau: float = 1e-9
+    fedyogi_eta: float = 0.01
+    fedyogi_eta_l: float = 0.0316
+    fedyogi_beta_1: float = 0.9
+    fedyogi_beta_2: float = 0.99
+    fedyogi_tau: float = 0.001
     fedadp_alpha: float = 5.0
     feddyn_alpha: float = 0.1
     feddc_alpha: float = 0.01
@@ -121,8 +134,32 @@ class ExperimentConfig:
     fedvck_enable_latent_constraints: bool = True
     fedvck_max_memory_rounds: int = 4
     fedproto_lambda: float = 1.0
+    fedmeta_method: str = "maml"
+    fedmeta_inner_learning_rate: float = 0.01
+    fedmeta_outer_learning_rate: float = 0.001
+    fedmeta_support_fraction: float = 0.5
+    fedmeta_inner_steps: int = 1
+    fedmeta_first_order: bool = True
+    fedmeta_alpha_init: float = 0.01
+    fednp_lambda: float = 0.1
+    fednp_prior_variance: float = 1.0
+    fednp_stability_eps: float = 1e-6
+    fedcurv_lambda: float = 0.1
+    fedcurv_fisher_batches: int = 1
+    fedcurv_stability_eps: float = 1e-6
+    fedmmd_sigma: float = 1.0
+    fedmmd_sknq_threshold: float = 0.5
+    fedmmd_min_clients: int = 2
+    fedmmd_entropy_eps: float = 1e-8
+    apfl_alpha: float = 0.5
+    apfl_personal_learning_rate: float = 0.01
+    apfl_adaptive_alpha: bool = True
+    apfl_alpha_learning_rate: float = 0.01
     fedntd_beta: float = 1.0
     fedntd_temperature: float = 1.0
+    fedlc_tau: float = 0.5
+    fedlc_epsilon: float = 1e-8
+    fedrs_alpha: float = 0.5
     ditto_lambda: float = 0.1
     pfedme_lambda: float = 15.0
     pfedme_beta: float = 1.0
@@ -190,6 +227,71 @@ class ExperimentConfig:
                 run_config,
                 "server-momentum",
                 cls.server_momentum,
+            ),
+            fedadagrad_eta=_as_float(
+                run_config,
+                "fedadagrad-eta",
+                cls.fedadagrad_eta,
+            ),
+            fedadagrad_eta_l=_as_float(
+                run_config,
+                "fedadagrad-eta-l",
+                cls.fedadagrad_eta_l,
+            ),
+            fedadagrad_tau=_as_float(
+                run_config,
+                "fedadagrad-tau",
+                cls.fedadagrad_tau,
+            ),
+            fedadam_eta=_as_float(
+                run_config,
+                "fedadam-eta",
+                cls.fedadam_eta,
+            ),
+            fedadam_eta_l=_as_float(
+                run_config,
+                "fedadam-eta-l",
+                cls.fedadam_eta_l,
+            ),
+            fedadam_beta_1=_as_float(
+                run_config,
+                "fedadam-beta-1",
+                cls.fedadam_beta_1,
+            ),
+            fedadam_beta_2=_as_float(
+                run_config,
+                "fedadam-beta-2",
+                cls.fedadam_beta_2,
+            ),
+            fedadam_tau=_as_float(
+                run_config,
+                "fedadam-tau",
+                cls.fedadam_tau,
+            ),
+            fedyogi_eta=_as_float(
+                run_config,
+                "fedyogi-eta",
+                cls.fedyogi_eta,
+            ),
+            fedyogi_eta_l=_as_float(
+                run_config,
+                "fedyogi-eta-l",
+                cls.fedyogi_eta_l,
+            ),
+            fedyogi_beta_1=_as_float(
+                run_config,
+                "fedyogi-beta-1",
+                cls.fedyogi_beta_1,
+            ),
+            fedyogi_beta_2=_as_float(
+                run_config,
+                "fedyogi-beta-2",
+                cls.fedyogi_beta_2,
+            ),
+            fedyogi_tau=_as_float(
+                run_config,
+                "fedyogi-tau",
+                cls.fedyogi_tau,
             ),
             fedadp_alpha=_as_float(
                 run_config,
@@ -501,6 +603,111 @@ class ExperimentConfig:
                 "fedproto-lambda",
                 cls.fedproto_lambda,
             ),
+            fedmeta_method=_as_str(
+                run_config,
+                "fedmeta-method",
+                cls.fedmeta_method,
+            ),
+            fedmeta_inner_learning_rate=_as_float(
+                run_config,
+                "fedmeta-inner-learning-rate",
+                cls.fedmeta_inner_learning_rate,
+            ),
+            fedmeta_outer_learning_rate=_as_float(
+                run_config,
+                "fedmeta-outer-learning-rate",
+                cls.fedmeta_outer_learning_rate,
+            ),
+            fedmeta_support_fraction=_as_float(
+                run_config,
+                "fedmeta-support-fraction",
+                cls.fedmeta_support_fraction,
+            ),
+            fedmeta_inner_steps=_as_int(
+                run_config,
+                "fedmeta-inner-steps",
+                cls.fedmeta_inner_steps,
+            ),
+            fedmeta_first_order=_as_bool(
+                run_config,
+                "fedmeta-first-order",
+                cls.fedmeta_first_order,
+            ),
+            fedmeta_alpha_init=_as_float(
+                run_config,
+                "fedmeta-alpha-init",
+                cls.fedmeta_alpha_init,
+            ),
+            fednp_lambda=_as_float(
+                run_config,
+                "fednp-lambda",
+                cls.fednp_lambda,
+            ),
+            fednp_prior_variance=_as_float(
+                run_config,
+                "fednp-prior-variance",
+                cls.fednp_prior_variance,
+            ),
+            fednp_stability_eps=_as_float(
+                run_config,
+                "fednp-stability-eps",
+                cls.fednp_stability_eps,
+            ),
+            fedcurv_lambda=_as_float(
+                run_config,
+                "fedcurv-lambda",
+                cls.fedcurv_lambda,
+            ),
+            fedcurv_fisher_batches=_as_int(
+                run_config,
+                "fedcurv-fisher-batches",
+                cls.fedcurv_fisher_batches,
+            ),
+            fedcurv_stability_eps=_as_float(
+                run_config,
+                "fedcurv-stability-eps",
+                cls.fedcurv_stability_eps,
+            ),
+            fedmmd_sigma=_as_float(
+                run_config,
+                "fedmmd-sigma",
+                cls.fedmmd_sigma,
+            ),
+            fedmmd_sknq_threshold=_as_float(
+                run_config,
+                "fedmmd-sknq-threshold",
+                cls.fedmmd_sknq_threshold,
+            ),
+            fedmmd_min_clients=_as_int(
+                run_config,
+                "fedmmd-min-clients",
+                cls.fedmmd_min_clients,
+            ),
+            fedmmd_entropy_eps=_as_float(
+                run_config,
+                "fedmmd-entropy-eps",
+                cls.fedmmd_entropy_eps,
+            ),
+            apfl_alpha=_as_float(
+                run_config,
+                "apfl-alpha",
+                cls.apfl_alpha,
+            ),
+            apfl_personal_learning_rate=_as_float(
+                run_config,
+                "apfl-personal-learning-rate",
+                cls.apfl_personal_learning_rate,
+            ),
+            apfl_adaptive_alpha=_as_bool(
+                run_config,
+                "apfl-adaptive-alpha",
+                cls.apfl_adaptive_alpha,
+            ),
+            apfl_alpha_learning_rate=_as_float(
+                run_config,
+                "apfl-alpha-learning-rate",
+                cls.apfl_alpha_learning_rate,
+            ),
             fedntd_beta=_as_float(
                 run_config,
                 "fedntd-beta",
@@ -510,6 +717,21 @@ class ExperimentConfig:
                 run_config,
                 "fedntd-temperature",
                 cls.fedntd_temperature,
+            ),
+            fedlc_tau=_as_float(
+                run_config,
+                "fedlc-tau",
+                cls.fedlc_tau,
+            ),
+            fedlc_epsilon=_as_float(
+                run_config,
+                "fedlc-epsilon",
+                cls.fedlc_epsilon,
+            ),
+            fedrs_alpha=_as_float(
+                run_config,
+                "fedrs-alpha",
+                cls.fedrs_alpha,
             ),
             ditto_lambda=_as_float(
                 run_config,
@@ -644,6 +866,32 @@ class ExperimentConfig:
             raise ValueError("server-learning-rate must be positive")
         if self.server_momentum < 0:
             raise ValueError("server-momentum must be non-negative")
+        if self.fedadagrad_eta <= 0:
+            raise ValueError("fedadagrad-eta must be positive")
+        if self.fedadagrad_eta_l <= 0:
+            raise ValueError("fedadagrad-eta-l must be positive")
+        if self.fedadagrad_tau <= 0:
+            raise ValueError("fedadagrad-tau must be positive")
+        if self.fedadam_eta <= 0:
+            raise ValueError("fedadam-eta must be positive")
+        if self.fedadam_eta_l <= 0:
+            raise ValueError("fedadam-eta-l must be positive")
+        if not 0 <= self.fedadam_beta_1 < 1:
+            raise ValueError("fedadam-beta-1 must be in [0, 1)")
+        if not 0 <= self.fedadam_beta_2 < 1:
+            raise ValueError("fedadam-beta-2 must be in [0, 1)")
+        if self.fedadam_tau <= 0:
+            raise ValueError("fedadam-tau must be positive")
+        if self.fedyogi_eta <= 0:
+            raise ValueError("fedyogi-eta must be positive")
+        if self.fedyogi_eta_l <= 0:
+            raise ValueError("fedyogi-eta-l must be positive")
+        if not 0 <= self.fedyogi_beta_1 < 1:
+            raise ValueError("fedyogi-beta-1 must be in [0, 1)")
+        if not 0 <= self.fedyogi_beta_2 < 1:
+            raise ValueError("fedyogi-beta-2 must be in [0, 1)")
+        if self.fedyogi_tau <= 0:
+            raise ValueError("fedyogi-tau must be positive")
         if self.fedadp_alpha <= 0:
             raise ValueError("fedadp-alpha must be positive")
         if self.feddyn_alpha <= 0:
@@ -764,10 +1012,54 @@ class ExperimentConfig:
             raise ValueError("fedvck-max-memory-rounds must be positive")
         if self.fedproto_lambda < 0:
             raise ValueError("fedproto-lambda must be non-negative")
+        if self.fedmeta_method not in {"maml", "meta-sgd"}:
+            raise ValueError("fedmeta-method must be one of: maml, meta-sgd")
+        if self.fedmeta_inner_learning_rate <= 0:
+            raise ValueError("fedmeta-inner-learning-rate must be positive")
+        if self.fedmeta_outer_learning_rate <= 0:
+            raise ValueError("fedmeta-outer-learning-rate must be positive")
+        if not 0 < self.fedmeta_support_fraction < 1:
+            raise ValueError("fedmeta-support-fraction must be in (0, 1)")
+        if self.fedmeta_inner_steps <= 0:
+            raise ValueError("fedmeta-inner-steps must be positive")
+        if self.fedmeta_alpha_init <= 0:
+            raise ValueError("fedmeta-alpha-init must be positive")
+        if self.fednp_lambda < 0:
+            raise ValueError("fednp-lambda must be non-negative")
+        if self.fednp_prior_variance <= 0:
+            raise ValueError("fednp-prior-variance must be positive")
+        if self.fednp_stability_eps <= 0:
+            raise ValueError("fednp-stability-eps must be positive")
+        if self.fedcurv_lambda < 0:
+            raise ValueError("fedcurv-lambda must be non-negative")
+        if self.fedcurv_fisher_batches <= 0:
+            raise ValueError("fedcurv-fisher-batches must be positive")
+        if self.fedcurv_stability_eps <= 0:
+            raise ValueError("fedcurv-stability-eps must be positive")
+        if self.fedmmd_sigma <= 0:
+            raise ValueError("fedmmd-sigma must be positive")
+        if not 0 < self.fedmmd_sknq_threshold < 1:
+            raise ValueError("fedmmd-sknq-threshold must be in (0, 1)")
+        if self.fedmmd_min_clients < 1:
+            raise ValueError("fedmmd-min-clients must be at least 1")
+        if self.fedmmd_entropy_eps <= 0:
+            raise ValueError("fedmmd-entropy-eps must be positive")
+        if not 0 < self.apfl_alpha < 1:
+            raise ValueError("apfl-alpha must be in (0, 1)")
+        if self.apfl_personal_learning_rate <= 0:
+            raise ValueError("apfl-personal-learning-rate must be positive")
+        if self.apfl_alpha_learning_rate <= 0:
+            raise ValueError("apfl-alpha-learning-rate must be positive")
         if self.fedntd_beta < 0:
             raise ValueError("fedntd-beta must be non-negative")
         if self.fedntd_temperature <= 0:
             raise ValueError("fedntd-temperature must be positive")
+        if self.fedlc_tau < 0:
+            raise ValueError("fedlc-tau must be non-negative")
+        if self.fedlc_epsilon <= 0:
+            raise ValueError("fedlc-epsilon must be positive")
+        if not 0 <= self.fedrs_alpha <= 1:
+            raise ValueError("fedrs-alpha must be in [0, 1]")
         if self.ditto_lambda < 0:
             raise ValueError("ditto-lambda must be non-negative")
         if self.pfedme_lambda <= 0:

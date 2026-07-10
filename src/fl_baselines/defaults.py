@@ -11,7 +11,11 @@ def register_default_components() -> None:
 
     from fl_baselines.algorithms.fedavg import FedAvgBuilder
     from fl_baselines.algorithms.fedavgm import FedAvgMBuilder
+    from fl_baselines.algorithms.fedadagrad import FedAdagradBuilder
+    from fl_baselines.algorithms.fedadam import FedAdamBuilder
     from fl_baselines.algorithms.fedadp import FedAdpBuilder
+    from fl_baselines.algorithms.fedyogi import FedYogiBuilder
+    from fl_baselines.algorithms.apfl import APFLBuilder
     from fl_baselines.algorithms.gamf import GAMFBuilder
     from fl_baselines.algorithms.fedma import FedMABuilder
     from fl_baselines.algorithms.fedcda import FedCDABuilder
@@ -19,6 +23,7 @@ def register_default_components() -> None:
     from fl_baselines.algorithms.feddrl import FedDRLBuilder
     from fl_baselines.algorithms.fedlaw import FedLAWBuilder
     from fl_baselines.algorithms.fedaaw import FedAAWBuilder
+    from fl_baselines.algorithms.fedrs import FedRSBuilder
     from fl_baselines.algorithms.ditto import DittoBuilder
     from fl_baselines.algorithms.feddc import FedDCBuilder
     from fl_baselines.algorithms.feddecorr import FedDecorrBuilder
@@ -30,7 +35,12 @@ def register_default_components() -> None:
     from fl_baselines.algorithms.fedsam import FedSAMBuilder
     from fl_baselines.algorithms.fedspeed import FedSpeedBuilder
     from fl_baselines.algorithms.fedntd import FedNTDBuilder
+    from fl_baselines.algorithms.fedlc import FedLCBuilder
     from fl_baselines.algorithms.fedproto import FedProtoBuilder
+    from fl_baselines.algorithms.fedmeta import FedMetaBuilder
+    from fl_baselines.algorithms.fedmmd import FedMMDBuilder
+    from fl_baselines.algorithms.fednp import FedNPBuilder
+    from fl_baselines.algorithms.fedcurv import FedCurvBuilder
     from fl_baselines.algorithms.pfedme import PFedMeBuilder
     from fl_baselines.algorithms.fedper import FedPerBuilder
     from fl_baselines.algorithms.fedrep import FedRepBuilder
@@ -82,6 +92,14 @@ def register_default_components() -> None:
         ALGORITHMS.register("fedavg", FedAvgBuilder())
     if "fedavgm" not in ALGORITHMS:
         ALGORITHMS.register("fedavgm", FedAvgMBuilder())
+    if "fedadagrad" not in ALGORITHMS:
+        ALGORITHMS.register("fedadagrad", FedAdagradBuilder())
+    if "fedadam" not in ALGORITHMS:
+        ALGORITHMS.register("fedadam", FedAdamBuilder())
+    if "fedyogi" not in ALGORITHMS:
+        ALGORITHMS.register("fedyogi", FedYogiBuilder())
+    if "apfl" not in ALGORITHMS:
+        ALGORITHMS.register("apfl", APFLBuilder())
     if "fedadp" not in ALGORITHMS:
         ALGORITHMS.register("fedadp", FedAdpBuilder())
     if "gamf" not in ALGORITHMS:
@@ -122,8 +140,20 @@ def register_default_components() -> None:
         ALGORITHMS.register("fedvck", FedVCKBuilder())
     if "fedntd" not in ALGORITHMS:
         ALGORITHMS.register("fedntd", FedNTDBuilder())
+    if "fedlc" not in ALGORITHMS:
+        ALGORITHMS.register("fedlc", FedLCBuilder())
+    if "fedrs" not in ALGORITHMS:
+        ALGORITHMS.register("fedrs", FedRSBuilder())
     if "fedproto" not in ALGORITHMS:
         ALGORITHMS.register("fedproto", FedProtoBuilder())
+    if "fedmeta" not in ALGORITHMS:
+        ALGORITHMS.register("fedmeta", FedMetaBuilder())
+    if "fedmmd" not in ALGORITHMS:
+        ALGORITHMS.register("fedmmd", FedMMDBuilder())
+    if "fednp" not in ALGORITHMS:
+        ALGORITHMS.register("fednp", FedNPBuilder())
+    if "fedcurv" not in ALGORITHMS:
+        ALGORITHMS.register("fedcurv", FedCurvBuilder())
     if "pfedme" not in ALGORITHMS:
         ALGORITHMS.register("pfedme", PFedMeBuilder())
     if "fednova" not in ALGORITHMS:

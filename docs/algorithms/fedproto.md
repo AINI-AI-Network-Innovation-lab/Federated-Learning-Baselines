@@ -1,6 +1,6 @@
 # FedProto
 
-FedProto them prototype aggregation vao global FL flow hien co cua repo. Trong integration nay, client van train classifier head va van duoc evaluate bang logits nhu cac baseline khac; prototype chi duoc dung de regularize embedding va de trao doi thong tin giua server-client.
+FedProto them prototype aggregation vao global FL flow hien co cua repo. Client train va giu local classifier/model rieng; server trao doi global prototypes de regularize embedding theo paper thay vi averaging local model weights.
 
 ## Files Chinh
 
@@ -19,18 +19,20 @@ FedProto them prototype aggregation vao global FL flow hien co cua repo. Trong i
 
 Moi round:
 
-1. Server broadcast global model hien tai cung global prototypes.
+1. Server broadcast model khoi tao/carrying payload cung global prototypes.
 2. Client train local model voi loss:
    - `cross_entropy`
    - `+ fedproto_lambda * prototype_regularization`
 3. Local prototype cua moi class duoc tinh bang mean embedding theo class.
 4. Client upload:
-   - updated model parameters
+   - local model parameters cho Flower payload/checkpoint compatibility
    - prototype sums theo class
    - class counts
 5. Server aggregate:
-   - model parameters theo FedAvg-style weighted average
    - global prototypes theo class bang prototype sums va counts
+   - khong FedAvg local model parameters; server model payload duoc giu co dinh
+
+FedProto local model state duoc luu duoi `output-dir/fedproto_clients/<client-id>/local_model.pt`, nen client khong bi reset ve server model o cac round sau.
 
 ## Feature Extraction
 
@@ -54,4 +56,4 @@ flwr run . --run-config 'algorithm="fedproto" fedproto-lambda=1.0' --stream
 
 ## Ghi Chu So Sanh
 
-FedProto duoc tich hop theo huong giu classifier/inference pipeline hien tai cua framework, nen ket qua van co the so sanh truc tiep voi cac baseline khac trong cung setup data/model/round/eval. Repo nay khong chuyen sang prototype-only inference cho FedProto.
+FedProto duoc tich hop theo huong giu classifier/inference pipeline hien tai cua framework cho client eval. Repo nay khong chuyen sang prototype-only inference, nhung server-side training communication cua FedProto khong aggregate model weights.

@@ -69,7 +69,7 @@ algorithm = ALGORITHMS.get(config.algorithm)
 Nếu key sai, framework sẽ fail rõ ràng, ví dụ:
 
 ```text
-Unknown algorithm 'custom'. Available: ditto, fedadp, fedavg, fedavgm, feddc, feddyn, fedexp, fedntd, fednova, fedper, fedproto, fedprox, fedrep, moon, pfedme, scaffold
+Unknown algorithm 'custom'. Available: ..., fedadam, fedavg, fedavgm, ...
 ```
 
 ## Config
@@ -94,6 +94,19 @@ Unknown algorithm 'custom'. Available: ditto, fedadp, fedavg, fedavgm, feddc, fe
 | `moon_temperature` | Temperature cho contrastive logits của MOON |
 | `server_learning_rate` | Learning rate của server optimizer cho FedAvgM |
 | `server_momentum` | Momentum của server optimizer cho FedAvgM |
+| `fedadagrad_eta` | Server learning rate cho FedAdagrad |
+| `fedadagrad_eta_l` | Client learning-rate scale được truyền cho Flower FedAdagrad strategy |
+| `fedadagrad_tau` | Hằng số ổn định mẫu số của FedAdagrad |
+| `fedadam_eta` | Server learning rate cho FedAdam |
+| `fedadam_eta_l` | Client learning-rate scale được truyền cho Flower FedAdam strategy |
+| `fedadam_beta_1` | First-moment decay của FedAdam |
+| `fedadam_beta_2` | Second-moment decay của FedAdam |
+| `fedadam_tau` | Hằng số ổn định mẫu số của FedAdam |
+| `fedyogi_eta` | Server learning rate cho FedYogi |
+| `fedyogi_eta_l` | Client learning-rate scale được truyền cho Flower FedYogi strategy |
+| `fedyogi_beta_1` | First-moment decay của FedYogi |
+| `fedyogi_beta_2` | Second-moment decay của FedYogi |
+| `fedyogi_tau` | Hằng số ổn định mẫu số của FedYogi |
 | `fedadp_alpha` | Hằng số alpha cho Gompertz mapping trong FedAdp |
 | `feddyn_alpha` | Hệ số dynamic regularization cho FedDyn |
 | `feddc_alpha` | Hệ số drift penalty trong FedDC |
@@ -110,8 +123,32 @@ Unknown algorithm 'custom'. Available: ditto, fedadp, fedavg, fedavgm, feddc, fe
 | `fedgen_alpha` | Hệ số scale alpha cho cập nhật feature mask của FedGEN |
 | `fedgen_lambda` | Hệ số regularization penalty của FedGEN |
 | `fedproto_lambda` | Hệ số regularization kéo local prototypes về global prototypes trong FedProto |
+| `fedmeta_method` | Chọn biến thể FedMeta: `maml` hoặc `meta-sgd` |
+| `fedmeta_inner_learning_rate` | Learning rate cho inner support-set adaptation trong FedMeta MAML |
+| `fedmeta_outer_learning_rate` | Learning rate server dùng để cập nhật algorithm parameters từ meta-gradients |
+| `fedmeta_support_fraction` | Tỉ lệ mỗi local batch dùng làm support set; phần còn lại là query set |
+| `fedmeta_inner_steps` | Số bước inner update trên support loss |
+| `fedmeta_first_order` | Dùng first-order MAML approximation khi bật |
+| `fedmeta_alpha_init` | Giá trị khởi tạo tensor `alpha` cho FedMeta Meta-SGD |
+| `fednp_lambda` | Hệ số regularization cho latent Gaussian auxiliary loss của FedNP |
+| `fednp_prior_variance` | Phương sai khởi tạo của latent global Gaussian phía server trong FedNP |
+| `fednp_stability_eps` | Hằng số epsilon để ổn định variance và KL computation của FedNP |
+| `fedcurv_lambda` | Hệ số regularization curvature-aware của FedCurv |
+| `fedcurv_fisher_batches` | Số mini-batch local dùng để ước lượng diagonal Fisher sau mỗi round FedCurv |
+| `fedcurv_stability_eps` | Hằng số epsilon chặn dưới diagonal Fisher để ổn định payload FedCurv |
+| `fedmmd_sigma` | Độ rộng kernel RBF dùng để đo parameter-space discrepancy trong FedMMD |
+| `fedmmd_sknq_threshold` | Ngưỡng SKNQ-style để giữ lại các client có deviation score thấp hơn cutoff |
+| `fedmmd_min_clients` | Số client tối thiểu FedMMD luôn giữ lại cho mỗi round aggregation |
+| `fedmmd_entropy_eps` | Epsilon ổn định chuẩn hóa score và entropy-style weighting trong FedMMD |
+| `apfl_alpha` | Hệ số trộn ban đầu giữa personalized model và global model trong APFL |
+| `apfl_personal_learning_rate` | Learning rate cho personalized local branch của APFL |
+| `apfl_adaptive_alpha` | Bật cập nhật thích nghi cho hệ số `alpha` trong APFL |
+| `apfl_alpha_learning_rate` | Learning rate cho bước cập nhật `alpha` của APFL |
 | `fedntd_beta` | Hệ số not-true distillation loss trong FedNTD |
 | `fedntd_temperature` | Temperature dùng cho not-true softmax trong FedNTD |
+| `fedlc_tau` | Hệ số logits calibration margin trong FedLC |
+| `fedlc_epsilon` | Epsilon ổn định class count cho lớp missing trong FedLC |
+| `fedrs_alpha` | Hệ số scale restricted softmax cho missing classes trong FedRS |
 | `ditto_lambda` | Hệ số regularization kéo personalized model về global model trong Ditto |
 | `pfedme_lambda` | Hệ số proximal regularization giữa personalized model và reference model trong pFedMe |
 | `pfedme_beta` | Hệ số server-side mixing của pFedMe |
