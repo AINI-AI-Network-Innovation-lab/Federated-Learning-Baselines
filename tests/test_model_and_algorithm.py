@@ -98,7 +98,6 @@ from fl_baselines.training.fedlama import (
     compute_fedlama_layer_discrepancies,
     fedlama_sync_mask_for_round,
     parse_fedlama_sync_mask,
-    train_fedlama_client,
 )
 from fl_baselines.training.moon import train_moon_client
 from fl_baselines.training.fedala import adaptive_local_aggregation
@@ -2440,7 +2439,7 @@ class ModelAndAlgorithmTest(unittest.TestCase):
             batch_size=2,
         )
 
-        metrics = train_fedlama_client(
+        metrics = train_one_client(
             model,
             loader,
             epochs=1,

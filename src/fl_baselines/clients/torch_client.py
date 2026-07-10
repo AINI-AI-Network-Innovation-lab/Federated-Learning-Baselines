@@ -42,7 +42,6 @@ from fl_baselines.training.fedlama import (
     parse_fedlama_layer_intervals,
     parse_fedlama_sync_mask,
     select_fedlama_parameters,
-    train_fedlama_client,
 )
 from fl_baselines.training.fedrs import train_fedrs_client
 from fl_baselines.training.fedproto import train_fedproto_client
@@ -892,7 +891,7 @@ class TorchFlowerClient(NumPyClient):
 
         local_epochs = int(config.get("local_epochs", self.config.local_epochs))
         learning_rate = float(config.get("learning_rate", self.config.learning_rate))
-        metrics = train_fedlama_client(
+        metrics = train_one_client(
             self.model,
             self.loaders.train,
             epochs=local_epochs,

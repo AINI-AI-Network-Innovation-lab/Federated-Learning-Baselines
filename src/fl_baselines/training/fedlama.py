@@ -6,10 +6,6 @@ import json
 from typing import Any
 
 import numpy as np
-from torch import nn
-from torch.utils.data import DataLoader
-
-from fl_baselines.training.train import train_one_client
 
 
 def parse_fedlama_sync_mask(raw_sync_mask: Any, num_layers: int) -> list[bool]:
@@ -120,20 +116,3 @@ def compute_fedlama_layer_discrepancies(
         denominator = max(interval * int(local_array.size), 1)
         discrepancies.append(float(np.sum(diff * diff) / denominator))
     return discrepancies
-
-
-def train_fedlama_client(
-    model: nn.Module,
-    train_loader: DataLoader,
-    *,
-    epochs: int,
-    learning_rate: float,
-    device: str,
-) -> dict[str, float]:
-    return train_one_client(
-        model,
-        train_loader,
-        epochs=epochs,
-        learning_rate=learning_rate,
-        device=device,
-    )
