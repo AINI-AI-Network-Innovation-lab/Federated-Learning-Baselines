@@ -116,6 +116,8 @@ class ExperimentConfig:
     fedlaw_server_epochs: int = 1
     fedlaw_server_learning_rate: float = 0.01
     fedlaw_gamma_init: float = 1.0
+    fedlws_beta: float = 0.1
+    fedlws_epsilon: float = 1e-12
     fedaaw_beta: float = 0.01
     fedaaw_gamma: float = 1.0
     fedaaw_epsilon: float = 1e-8
@@ -518,6 +520,16 @@ class ExperimentConfig:
                 run_config,
                 "fedlaw-gamma-init",
                 cls.fedlaw_gamma_init,
+            ),
+            fedlws_beta=_as_float(
+                run_config,
+                "fedlws-beta",
+                cls.fedlws_beta,
+            ),
+            fedlws_epsilon=_as_float(
+                run_config,
+                "fedlws-epsilon",
+                cls.fedlws_epsilon,
             ),
             fedaaw_beta=_as_float(
                 run_config,
@@ -1014,6 +1026,10 @@ class ExperimentConfig:
             raise ValueError("fedlaw-server-learning-rate must be positive")
         if self.fedlaw_gamma_init <= 0:
             raise ValueError("fedlaw-gamma-init must be positive")
+        if self.fedlws_beta <= 0:
+            raise ValueError("fedlws-beta must be positive")
+        if self.fedlws_epsilon <= 0:
+            raise ValueError("fedlws-epsilon must be positive")
         if self.fedaaw_beta <= 0:
             raise ValueError("fedaaw-beta must be positive")
         if self.fedaaw_gamma < 0:

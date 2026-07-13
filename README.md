@@ -67,11 +67,10 @@ Pipeline evaluation hiện dùng hai mức rõ ràng:
 | FedCDA | 2024 | [FedCDA: Federated Learning with Cross-Round Divergence-Aware Aggregation](https://openreview.net/forum?id=nbPGqeH3lt) |
 | FedEnt | 2024 | [Adaptive Federated Learning via New Entropy Approach](https://arxiv.org/abs/2303.14966) |
 | FedLAW | 2024 | [Revisiting Weighted Aggregation in Federated Learning with Neural Networks](https://arxiv.org/abs/2302.10911) |
+| FedLWS | 2025 | [FedLWS: Federated Learning with Adaptive Layer-wise Weight Shrinking](https://arxiv.org/abs/2503.15111) |
 | FedAAW | 2025 | [Federated Learning With Adaptive Aggregation Weights for Non-IID Data in Edge Networks](https://doi.org/10.1109/TCCN.2025.3534248) |
 | FedVCK | 2025 | [FedVCK: Non-IID Robust and Communication-Efficient Federated Learning via Valuable Condensed Knowledge for Medical Image Analysis](https://arxiv.org/abs/2412.18557) |
 | FedLAA | 2026 | [Accelerating model convergence in federated learning with layer-wise adaptive weight aggregation](https://doi.org/10.1016/j.asoc.2026.115676) |
-
-Ghi chú: registry hiện hỗ trợ thêm alias `feddrrl` trỏ tới baseline canonical `feddrl` (`FedDRL`) để tương thích cấu hình cũ.
 
 ## Datasets
 

@@ -121,7 +121,7 @@ class TorchFlowerClient(NumPyClient):
             return self._fit_fedaaw(parameters, config)
         if algorithm == "fedgen":
             return self._fit_fedgen(parameters, config)
-        if algorithm in {"feddrl", "feddrrl"}:
+        if algorithm == "feddrl":
             return self._fit_feddrl(parameters, config)
         if algorithm == "feddisco":
             return self._fit_feddisco(parameters, config)

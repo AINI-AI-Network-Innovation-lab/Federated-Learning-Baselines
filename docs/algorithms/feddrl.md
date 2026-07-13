@@ -51,4 +51,4 @@ Them trong `ExperimentConfig` va `pyproject.toml`:
 
 - Implementation hien tai chon huong practical-faithful: actor-critic online trong strategy server.
 - Paper co mo ta them two-stage worker/offline RL training; phan do chua duoc dua vao repo nay de giu baseline gon va phu hop runtime Flower hien tai.
-- Registry dang ho tro ca alias `feddrrl`, nhung ten canonical trong docs va fit config la `feddrl`.
+- Ten algorithm chuan trong registry, docs, va fit config la `feddrl`.

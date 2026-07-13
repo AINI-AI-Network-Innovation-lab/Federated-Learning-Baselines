@@ -20,6 +20,7 @@ Mỗi algorithm có một file riêng để dễ mở rộng khi thêm baseline 
 | FedDRL | [feddrl.md](feddrl.md) |
 | FedEnt | [fedent.md](fedent.md) |
 | FedLAW | [fedlaw.md](fedlaw.md) |
+| FedLWS | [fedlws.md](fedlws.md) |
 | FedAAW | [fedaaw.md](fedaaw.md) |
 | FedDisco | [feddisco.md](feddisco.md) |
 | FedVCK | [fedvck.md](fedvck.md) |

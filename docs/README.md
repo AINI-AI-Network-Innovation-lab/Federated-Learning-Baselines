@@ -53,6 +53,7 @@ Mỗi algorithm có một file riêng trong `docs/algorithms/` để dễ mở r
 | [algorithms/feddrl.md](algorithms/feddrl.md) | FedDRL adaptive server aggregation bang actor-critic tren state gom pre-loss, post-loss va sample ratio cua tung client. |
 | [algorithms/fedent.md](algorithms/fedent.md) | FedEnt adaptive learning rate theo entropy va mean-field, giu server aggregation kieu FedAvg. |
 | [algorithms/fedlaw.md](algorithms/fedlaw.md) | FedLAW hoc relative aggregation weights va global shrinking factor tren server-side proxy data. |
+| [algorithms/fedlws.md](algorithms/fedlws.md) | FedLWS adaptive layer-wise weight shrinking sau server aggregation, khong can proxy dataset hay client route rieng. |
 | [algorithms/fedaaw.md](algorithms/fedaaw.md) | FedAAW adaptive aggregation weights dua tren pre-update squared gradient norm cua tung client. |
 | [algorithms/feddisco.md](algorithms/feddisco.md) | FedDisco discrepancy-aware aggregation dua tren local label distribution cua tung client. |
 | [algorithms/fedvck.md](algorithms/fedvck.md) | FedVCK client condensed knowledge payload va server replay/contrastive update tren memory da thu thap. |

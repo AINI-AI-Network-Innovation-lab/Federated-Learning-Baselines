@@ -30,6 +30,7 @@ from fl_baselines.algorithms.fedcda import FedCDABuilder, FedCDAStrategy
 from fl_baselines.algorithms.fedgen import FedGENBuilder, FedGENStrategy
 from fl_baselines.algorithms.feddrl import FedDRLBuilder, FedDRLStrategy
 from fl_baselines.algorithms.fedlaw import FedLAWBuilder, FedLAWStrategy
+from fl_baselines.algorithms.fedlws import FedLWSBuilder, FedLWSStrategy
 from fl_baselines.algorithms.ditto import DittoBuilder
 from fl_baselines.algorithms.feddc import FedDCBuilder, FedDCStrategy
 from fl_baselines.algorithms.feddecorr import FedDecorrBuilder
@@ -936,6 +937,60 @@ class ModelAndAlgorithmTest(unittest.TestCase):
 
                 self.assertIsInstance(strategy, FedLAWStrategy)
                 self.assertEqual(strategy.on_fit_config_fn(1)["algorithm"], "fedlaw")
+
+    def test_fedlws_builder_creates_strategy(self) -> None:
+        config = ExperimentConfig.from_run_config(
+            {
+                "algorithm": "fedlws",
+                "num-supernodes": 4,
+                "fedlws-beta": 0.2,
+                "fedlws-epsilon": 1e-7,
+            }
+        )
+        model = MnistCnnBuilder().build_model(config)
+
+        strategy = FedLWSBuilder().build_strategy(config, model, evaluate_fn=None)
+        fit_config = strategy.on_fit_config_fn(1)
+
+        self.assertIsInstance(strategy, FedLWSStrategy)
+        self.assertEqual(strategy.min_fit_clients, 4)
+        self.assertEqual(strategy.beta, 0.2)
+        self.assertEqual(strategy.epsilon, 1e-7)
+        self.assertEqual(fit_config["algorithm"], "fedlws")
+        self.assertEqual(fit_config["fedlws_beta"], 0.2)
+
+    def test_fedlws_builder_supports_current_models(self) -> None:
+        cases = [
+            (MnistCnnBuilder(), {}),
+            (LeNetBuilder(), {}),
+            (
+                ResNet9Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                ResNet18Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                ResNet34Builder(),
+                {"input-channels": 3, "input-height": 32, "input-width": 32},
+            ),
+            (
+                InceptionBuilder(),
+                {"input-channels": 3, "input-height": 75, "input-width": 75},
+            ),
+        ]
+
+        for model_builder, overrides in cases:
+            with self.subTest(model=model_builder.name):
+                config = ExperimentConfig.from_run_config(
+                    {"algorithm": "fedlws", "num-supernodes": 2, **overrides}
+                )
+                model = model_builder.build_model(config)
+                strategy = FedLWSBuilder().build_strategy(config, model, evaluate_fn=None)
+
+                self.assertIsInstance(strategy, FedLWSStrategy)
+                self.assertEqual(strategy.on_fit_config_fn(1)["algorithm"], "fedlws")
 
     def test_fedaaw_builder_supports_current_models(self) -> None:
         cases = [
@@ -2763,6 +2818,61 @@ class ModelAndAlgorithmTest(unittest.TestCase):
         self.assertGreater(aggregated[0, 0], fedavg[0, 0])
         self.assertLess(aggregated[0, 1], fedavg[0, 1])
         self.assertAlmostEqual(sum(strategy.last_aggregation_weights), 1.0)
+
+    def test_fedlws_strategy_applies_layerwise_weight_shrinking(self) -> None:
+        model = torch.nn.Sequential(
+            torch.nn.Linear(2, 1, bias=False),
+            torch.nn.Linear(1, 1, bias=False),
+        )
+        initial_parameters = [
+            np.array([[2.0, 0.0]], dtype=np.float32),
+            np.array([[1.0]], dtype=np.float32),
+        ]
+
+        with tempfile.TemporaryDirectory() as output_dir:
+            strategy = FedLWSStrategy(
+                fraction_fit=1.0,
+                fraction_evaluate=1.0,
+                min_fit_clients=2,
+                min_evaluate_clients=2,
+                min_available_clients=2,
+                initial_parameters=ndarrays_to_parameters(initial_parameters),
+                beta=0.5,
+                epsilon=1e-12,
+                checkpoint_model=model,
+                output_dir=output_dir,
+            )
+            first_model = [
+                np.array([[4.0, 0.0]], dtype=np.float32),
+                np.array([[3.0]], dtype=np.float32),
+            ]
+            second_model = [
+                np.array([[2.0, 2.0]], dtype=np.float32),
+                np.array([[3.0]], dtype=np.float32),
+            ]
+            results = [
+                (
+                    None,
+                    FitRes(Status(Code.OK, ""), ndarrays_to_parameters(first_model), 1, {}),
+                ),
+                (
+                    None,
+                    FitRes(Status(Code.OK, ""), ndarrays_to_parameters(second_model), 1, {}),
+                ),
+            ]
+
+            aggregated_parameters, metrics = strategy.aggregate_fit(1, results, [])
+
+        aggregated = parameters_to_ndarrays(aggregated_parameters)
+        fedavg_first_layer = np.array([[3.0, 1.0]], dtype=np.float32)
+        self.assertLess(aggregated[0][0, 0], fedavg_first_layer[0, 0])
+        self.assertLess(aggregated[0][0, 1], fedavg_first_layer[0, 1])
+        np.testing.assert_allclose(aggregated[1], np.array([[3.0]], dtype=np.float32))
+        self.assertEqual(len(strategy.last_layer_gammas), 2)
+        self.assertLess(strategy.last_layer_gammas[0], 1.0)
+        self.assertAlmostEqual(strategy.last_layer_gammas[1], 1.0)
+        self.assertIn("fedlws_gamma_mean", metrics)
+        self.assertIn("fedlws_tau_mean", metrics)
 
     def test_feddyn_strategy_updates_auxiliary_state_and_global_model(self) -> None:
         model = torch.nn.Linear(2, 1, bias=False)

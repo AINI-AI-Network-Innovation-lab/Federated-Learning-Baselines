@@ -114,6 +114,8 @@ Unknown algorithm 'custom'. Available: ..., fedadam, fedavg, fedavgm, ...
 | `fedlaw_server_epochs` | Số epoch server-side optimization trên proxy loader cho FedLAW |
 | `fedlaw_server_learning_rate` | Learning rate của optimizer học `lambda` và `gamma` trong FedLAW |
 | `fedlaw_gamma_init` | Giá trị khởi tạo cho shrinking factor `gamma` của FedLAW |
+| `fedlws_beta` | Scaling term cho adaptive layer-wise weight shrinking trong FedLWS |
+| `fedlws_epsilon` | Hằng số ổn định mẫu số khi FedLWS tính `gamma_l` |
 | `gamf_sigma` | Hệ số sigma cho độ tương đồng second-order của GAMF |
 | `gamf_initial_tau` | Nhiệt độ Sinkhorn khởi tạo của GAMF |
 | `gamf_descent_factor` | Hệ số giảm nhiệt độ sau mỗi vòng GAMF |

@@ -142,6 +142,10 @@ fedlaw-server-epochs = 1
 fedlaw-server-learning-rate = 0.01
 fedlaw-gamma-init = 1.0
 
+# FedLWS
+fedlws-beta = 0.1
+fedlws-epsilon = 1e-12
+
 # FedProto
 fedproto-lambda = 1.0
 
@@ -325,6 +329,12 @@ flwr run . --run-config 'algorithm="feddrl" feddrl-updates-per-round=1 feddrl-no
 
 ```bash
 flwr run . --run-config 'algorithm="fedlaw" fedlaw-server-epochs=3 fedlaw-server-learning-rate=0.01 fedlaw-gamma-init=1.0' --stream
+```
+
+## Chạy FedLWS
+
+```bash
+flwr run . --run-config 'algorithm="fedlws" fedlws-beta=0.1' --stream
 ```
 
 ## Chạy FedGEN

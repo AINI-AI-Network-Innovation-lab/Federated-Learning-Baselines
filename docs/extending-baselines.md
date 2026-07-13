@@ -171,6 +171,7 @@ Các algorithm hiện có:
 - `feddrl`
 - `fedent`
 - `fedlaw`
+- `fedlws`
 - `fedaaw`
 - `feddisco`
 - `fedvck`

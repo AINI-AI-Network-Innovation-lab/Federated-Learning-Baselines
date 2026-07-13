@@ -94,6 +94,8 @@ class ExperimentConfigTest(unittest.TestCase):
                 "fedlaw-server-epochs": 4,
                 "fedlaw-server-learning-rate": 0.03,
                 "fedlaw-gamma-init": 0.9,
+                "fedlws-beta": 0.2,
+                "fedlws-epsilon": 1e-7,
                 "fedaaw-beta": 0.02,
                 "fedaaw-gamma": 1.5,
                 "fedaaw-epsilon": 1e-7,
@@ -241,6 +243,8 @@ class ExperimentConfigTest(unittest.TestCase):
         self.assertEqual(config.fedlaw_server_epochs, 4)
         self.assertEqual(config.fedlaw_server_learning_rate, 0.03)
         self.assertEqual(config.fedlaw_gamma_init, 0.9)
+        self.assertEqual(config.fedlws_beta, 0.2)
+        self.assertEqual(config.fedlws_epsilon, 1e-7)
         self.assertEqual(config.fedaaw_beta, 0.02)
         self.assertEqual(config.fedaaw_gamma, 1.5)
         self.assertEqual(config.fedaaw_epsilon, 1e-7)
@@ -420,6 +424,12 @@ class ExperimentConfigTest(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "fedlaw-gamma-init must be positive"):
             ExperimentConfig.from_run_config({"fedlaw-gamma-init": 0.0})
+
+        with self.assertRaisesRegex(ValueError, "fedlws-beta must be positive"):
+            ExperimentConfig.from_run_config({"fedlws-beta": 0.0})
+
+        with self.assertRaisesRegex(ValueError, "fedlws-epsilon must be positive"):
+            ExperimentConfig.from_run_config({"fedlws-epsilon": 0.0})
 
         with self.assertRaisesRegex(ValueError, "fedgen-alpha must be positive"):
             ExperimentConfig.from_run_config({"fedgen-alpha": 0.0})
