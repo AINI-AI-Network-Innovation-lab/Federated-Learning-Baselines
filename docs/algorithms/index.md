@@ -25,6 +25,7 @@ Mỗi algorithm có một file riêng để dễ mở rộng khi thêm baseline 
 | FedDisco | [feddisco.md](feddisco.md) |
 | FedVCK | [fedvck.md](fedvck.md) |
 | FedDyn | [feddyn.md](feddyn.md) |
+| FedADMM | [fedadmm.md](fedadmm.md) |
 | FedExP | [fedexp.md](fedexp.md) |
 | FedSAM | [fedsam.md](fedsam.md) |
 | FedSpeed | [fedspeed.md](fedspeed.md) |

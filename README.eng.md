@@ -1,7 +1,7 @@
 # FL Baselines Using Flower
 
 <p align="left">
-  <strong>Khung thực nghiệm Federated Learning xây trên Flower và PyTorch, tập trung vào các thuật toán nền rõ ràng, dễ chạy lại và dễ mở rộng.</strong>
+  <strong>A Flower + PyTorch framework for reproducible federated learning baselines.</strong>
 </p>
 
 <p align="left">
@@ -10,26 +10,26 @@
   <img alt="PyTorch" src="https://img.shields.io/badge/PyTorch-EE4C2C?logo=pytorch&logoColor=white">
 </p>
 
-> Bản tiếng Anh: [README.eng.md](README.eng.md)
+> Vietnamese version: [README.md](README.md)
 
-Mục tiêu của khung này là cung cấp các thuật toán nền federated learning minh bạch, có thể tái lập và dễ mở rộng qua ba điểm mở rộng cốt lõi: `dataset`, `model`, và `algorithm`.
+This framework focuses on one goal: providing clear, reproducible, and extensible federated learning baselines across three core extension points: `dataset`, `model`, and `algorithm`.
 
-Tài liệu chi tiết nằm trong `docs/`.
+Detailed documentation is available in `docs/`.
 
-> Đánh giá phía server dùng tập kiểm tra ở phía server, còn đánh giá phía client dùng một phần giữ lại tách từ phân hoạch cục bộ của từng client.
+> Server evaluation uses the server-side test set, while client evaluation uses a held-out split from each client’s local partition.
 >
-> Ở cả hai mức đánh giá, khung báo cáo `loss`, `accuracy`, `precision`, `recall`, và `f1`; ba metric cuối dùng trung bình macro cho bài toán phân loại nhiều lớp.
+> At both evaluation levels, the framework reports `loss`, `accuracy`, `precision`, `recall`, and `f1`; the last three metrics use macro averaging for multi-class classification.
 
-## Tóm Tắt Nhanh
+## At a Glance
 
-| Bạn nhận được | Chi tiết |
+| What you get | Details |
 | --- | --- |
-| Registry mở rộng được | Thêm dataset, model, algorithm bằng builder riêng, không phải sửa luồng chính của Flower. |
-| Nhiều thuật toán nền sẵn có | Hỗ trợ từ FedAvg, FedProx, SCAFFOLD đến các hướng cá nhân hóa, thích ứng, và dựa trên chưng cất tri thức. |
-| Đánh giá có thể tái lập | Tách rõ đánh giá phía server và đánh giá phía client, đồng bộ metric trong toàn quy trình. |
-| Tài liệu đầy đủ | Có hướng dẫn bắt đầu nhanh, kiến trúc, hướng dẫn mở rộng thuật toán nền, và mô tả từng thuật toán. |
+| Extensible registry | Add datasets, models, and algorithms through dedicated builders without touching Flower’s main flow. |
+| Broad baseline coverage | Supports baselines from FedAvg, FedProx, and SCAFFOLD to personalized, adaptive, and distillation-based methods. |
+| Reproducible evaluation | Separates server evaluation and client evaluation while keeping metrics consistent throughout the pipeline. |
+| Project docs | Includes quickstart, architecture, baseline extension guidance, and per-algorithm descriptions. |
 
-## Bắt Đầu Nhanh
+## Quick Start
 
 ```bash
 python -m pip install -r requirements.txt
@@ -37,26 +37,26 @@ python -m pip install -e . --no-deps
 flwr run . --stream
 ```
 
-## Cấu Trúc Dự Án
+## Project Structure
 
-| Đường dẫn | Mô tả |
+| Path | Description |
 | --- | --- |
-| `src/fl_baselines/` | Mã nguồn chính của khung FL, gồm app Flower, registry, dataset, model, algorithm, client, training và logging. |
-| `tests/` | Unit tests cho config, registry, partitioning, model và algorithm builder. |
-| `docs/` | Tài liệu chi tiết về dự án, kiến trúc mã nguồn, cách chạy và cách mở rộng thuật toán nền. |
-| `configs/` | Nơi ghi chú hoặc preset config khi project phát triển thêm; hiện runtime config chính nằm trong `pyproject.toml`. |
-| `pyproject.toml` | Metadata package, cấu hình Flower app, config mặc định và local simulation. |
-| `requirements.txt` | Các dependency runtime đã khóa version cho phiên bản hiện tại. |
+| `src/fl_baselines/` | Main framework source code, including the Flower app, registry, datasets, models, algorithms, clients, training, and logging. |
+| `tests/` | Unit tests for config, registry, partitioning, model, and algorithm builders. |
+| `docs/` | Detailed project documentation, code architecture, runtime instructions, and baseline extension guidance. |
+| `configs/` | Space for notes or presets as the project grows; the primary runtime config currently lives in `pyproject.toml`. |
+| `pyproject.toml` | Package metadata, Flower app config, default settings, and local simulation wiring. |
+| `requirements.txt` | Version-pinned runtime dependencies for the current release. |
 
-## Cách Cấu Hình
+## Configuration
 
 ```bash
 flwr run . --run-config 'algorithm="fedavg" dataset="mnist" model="mnist_cnn" partitioner="dirichlet" dirichlet-alpha=0.3' --stream
 ```
 
-## Thuật Toán Nền
+## Baselines
 
-| Thuật toán nền | Năm | Bài báo |
+| Baseline | Year | Paper |
 | --- | --- | --- |
 | FedAvg | 2017 | [Communication-Efficient Learning of Deep Networks from Decentralized Data](https://arxiv.org/abs/1602.05629) |
 | FedMeta | 2018 | [Federated Meta-Learning with Fast Convergence and Efficient Communication](https://arxiv.org/abs/1802.07876) |
@@ -104,24 +104,24 @@ flwr run . --run-config 'algorithm="fedavg" dataset="mnist" model="mnist_cnn" pa
 | FedVCK | 2025 | [FedVCK: Non-IID Robust and Communication-Efficient Federated Learning via Valuable Condensed Knowledge for Medical Image Analysis](https://arxiv.org/abs/2412.18557) |
 | FedLAA | 2026 | [Accelerating model convergence in federated learning with layer-wise adaptive weight aggregation](https://doi.org/10.1016/j.asoc.2026.115676) |
 
-## Tập Dữ Liệu
+## Datasets
 
-| Khóa tập dữ liệu | Mô tả |
+| Dataset key | Description |
 | --- | --- |
-| `mnist` | Chữ số MNIST |
+| `mnist` | MNIST digits |
 | `fmnist` | Fashion-MNIST |
-| `emnist` | EMNIST, cấu hình split bằng `emnist-split` |
+| `emnist` | EMNIST, configured with `emnist-split` |
 | `cifar10` | CIFAR-10 |
 | `cifar100` | CIFAR-100 |
-| `imagenet` | Thư mục ImageNet cục bộ, cần chuẩn bị dữ liệu thủ công |
+| `imagenet` | Local ImageNet folder; manual data preparation required |
 
-## Mô Hình
+## Models
 
-| Khóa mô hình | Mô tả |
+| Model key | Description |
 | --- | --- |
-| `mnist_cnn` | CNN nhỏ cho MNIST |
-| `lenet` | CNN kiểu LeNet, có thể cấu hình đầu vào/đầu ra |
-| `resnet9` | ResNet-9 nội bộ, có thể cấu hình đầu vào/đầu ra |
-| `resnet18` | TorchVision ResNet-18, có thể cấu hình đầu vào/đầu ra |
-| `resnet34` | TorchVision ResNet-34, có thể cấu hình đầu vào/đầu ra |
-| `inception` | TorchVision Inception v3, có thể cấu hình đầu vào/đầu ra |
+| `mnist_cnn` | Small CNN for MNIST |
+| `lenet` | LeNet-style CNN with configurable input and output |
+| `resnet9` | Internal ResNet-9 with configurable input and output |
+| `resnet18` | TorchVision ResNet-18 with configurable input and output |
+| `resnet34` | TorchVision ResNet-34 with configurable input and output |
+| `inception` | TorchVision Inception v3 with configurable input and output |

@@ -9,6 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from fl_baselines.core.registry import Registry
 from fl_baselines.defaults import register_default_components
 from fl_baselines.core.registry import ALGORITHMS, DATASETS
+from fl_baselines.core.config import ExperimentConfig
 
 
 class RegistryTest(unittest.TestCase):
@@ -82,10 +83,21 @@ class RegistryTest(unittest.TestCase):
             "fedamp",
             "fedlaa",
             "fedprox",
+            "fedadmm",
             "scaffold",
             "moon",
         ]:
             self.assertIn(algorithm_name, ALGORITHMS.names())
+
+    def test_experiment_config_has_fedadmm_defaults(self) -> None:
+        config = ExperimentConfig.from_run_config({})
+
+        self.assertGreater(config.fedadmm_alpha, 0.0)
+
+    def test_experiment_config_parses_fedadmm_alpha(self) -> None:
+        config = ExperimentConfig.from_run_config({"fedadmm-alpha": 2.5})
+
+        self.assertEqual(config.fedadmm_alpha, 2.5)
 
     def test_default_components_include_common_datasets(self) -> None:
         register_default_components()

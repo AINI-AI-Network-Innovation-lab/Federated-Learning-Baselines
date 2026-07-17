@@ -39,6 +39,7 @@ from fl_baselines.algorithms.feddisco import FedDiscoBuilder, FedDiscoStrategy
 from fl_baselines.algorithms.fedent import FedEntBuilder
 from fl_baselines.algorithms.fedvck import FedVCKBuilder, FedVCKStrategy
 from fl_baselines.algorithms.feddyn import FedDynBuilder, FedDynStrategy
+from fl_baselines.algorithms.fedadmm import FedADMMBuilder, FedADMMStrategy
 from fl_baselines.algorithms.fedexp import FedExPBuilder, FedExPStrategy
 from fl_baselines.algorithms.fedsam import FedSAMBuilder
 from fl_baselines.algorithms.fedspeed import FedSpeedBuilder
@@ -1153,6 +1154,21 @@ class ModelAndAlgorithmTest(unittest.TestCase):
         self.assertEqual(strategy.alpha, 0.2)
         self.assertEqual(fit_config["algorithm"], "feddyn")
         self.assertEqual(fit_config["feddyn_alpha"], 0.2)
+
+    def test_fedadmm_builder_creates_strategy(self) -> None:
+        config = ExperimentConfig.from_run_config(
+            {"num-supernodes": 4, "fedadmm-alpha": 0.35}
+        )
+        model = MnistCnnBuilder().build_model(config)
+
+        strategy = FedADMMBuilder().build_strategy(config, model, evaluate_fn=None)
+        fit_config = strategy.on_fit_config_fn(1)
+
+        self.assertIsInstance(strategy, FedADMMStrategy)
+        self.assertEqual(strategy.min_fit_clients, 4)
+        self.assertEqual(strategy.alpha, 0.35)
+        self.assertEqual(fit_config["algorithm"], "fedadmm")
+        self.assertEqual(fit_config["fedadmm_alpha"], 0.35)
 
     def test_feddyn_builder_supports_current_models(self) -> None:
         cases = [
@@ -4243,6 +4259,100 @@ class ModelAndAlgorithmTest(unittest.TestCase):
                 any(
                     not torch.equal(first, second)
                     for first, second in zip(first_state, second_state)
+                )
+            )
+
+    def test_fedadmm_client_fit_persists_dual_state(self) -> None:
+        with tempfile.TemporaryDirectory() as output_dir:
+            config = ExperimentConfig.from_run_config(
+                {
+                    "algorithm": "fedadmm",
+                    "output-dir": output_dir,
+                    "fedadmm-alpha": 0.2,
+                }
+            )
+            model = torch.nn.Linear(3, 2)
+            loader = DataLoader(
+                TensorDataset(torch.ones(4, 3), torch.zeros(4, dtype=torch.long)),
+                batch_size=2,
+            )
+            client = TorchFlowerClient(
+                model,
+                loaders=type("Loaders", (), {"train": loader, "test": loader})(),
+                config=config,
+                client_id="5",
+            )
+            initial_parameters = get_model_parameters(model)
+
+            updated_parameters, num_examples, metrics = client.fit(
+                initial_parameters,
+                {
+                    "algorithm": "fedadmm",
+                    "local_epochs": 1,
+                    "learning_rate": 0.1,
+                    "fedadmm_alpha": 0.2,
+                },
+            )
+
+            self.assertEqual(num_examples, 4)
+            self.assertEqual(len(updated_parameters), 2 * len(initial_parameters))
+            self.assertIn("train_loss", metrics)
+            state_path = Path(output_dir) / "fedadmm_clients" / "5" / "state.pt"
+            self.assertTrue(state_path.exists())
+
+    def test_fedadmm_client_fit_reuses_saved_dual_state(self) -> None:
+        with tempfile.TemporaryDirectory() as output_dir:
+            config = ExperimentConfig.from_run_config(
+                {
+                    "algorithm": "fedadmm",
+                    "output-dir": output_dir,
+                    "fedadmm-alpha": 0.2,
+                }
+            )
+            model = torch.nn.Linear(3, 2)
+            loader = DataLoader(
+                TensorDataset(torch.ones(4, 3), torch.zeros(4, dtype=torch.long)),
+                batch_size=2,
+            )
+            client = TorchFlowerClient(
+                model,
+                loaders=type("Loaders", (), {"train": loader, "test": loader})(),
+                config=config,
+                client_id="6",
+            )
+            initial_parameters = get_model_parameters(model)
+
+            client.fit(
+                initial_parameters,
+                {
+                    "algorithm": "fedadmm",
+                    "local_epochs": 1,
+                    "learning_rate": 0.1,
+                    "fedadmm_alpha": 0.2,
+                },
+            )
+            state_path = Path(output_dir) / "fedadmm_clients" / "6" / "state.pt"
+            first_state = torch.load(state_path, map_location="cpu", weights_only=True)
+
+            client.fit(
+                initial_parameters,
+                {
+                    "algorithm": "fedadmm",
+                    "local_epochs": 1,
+                    "learning_rate": 0.1,
+                    "fedadmm_alpha": 0.2,
+                },
+            )
+            second_state = torch.load(state_path, map_location="cpu", weights_only=True)
+
+            self.assertEqual(len(first_state), len(second_state))
+            self.assertTrue(
+                any(
+                    not torch.equal(first_tensor, second_tensor)
+                    for first_tensor, second_tensor in zip(
+                        first_state,
+                        second_state,
+                    )
                 )
             )
 

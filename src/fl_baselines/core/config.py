@@ -74,6 +74,7 @@ class ExperimentConfig:
     fedyogi_tau: float = 0.001
     fedadp_alpha: float = 5.0
     feddyn_alpha: float = 0.1
+    fedadmm_alpha: float = 1.0
     feddc_alpha: float = 0.01
     feddecorr_beta: float = 0.1
     fedexp_epsilon: float = 0.001
@@ -310,6 +311,11 @@ class ExperimentConfig:
                 run_config,
                 "feddyn-alpha",
                 cls.feddyn_alpha,
+            ),
+            fedadmm_alpha=_as_float(
+                run_config,
+                "fedadmm-alpha",
+                cls.fedadmm_alpha,
             ),
             feddc_alpha=_as_float(
                 run_config,

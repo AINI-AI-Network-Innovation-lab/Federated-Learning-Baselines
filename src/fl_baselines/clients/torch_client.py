@@ -27,6 +27,7 @@ from fl_baselines.training.feddc import train_feddc_client
 from fl_baselines.training.feddecorr import train_feddecorr_client
 from fl_baselines.training.fedma import train_fedma_client
 from fl_baselines.training.fedgen import evaluate_fedgen_model, train_fedgen_client
+from fl_baselines.training.fedadmm import train_fedadmm_client, update_fedadmm_state
 from fl_baselines.training.feddrl import train_feddrl_client
 from fl_baselines.training.feddisco import train_feddisco_client
 from fl_baselines.training.fedent import train_fedent_client
@@ -111,6 +112,8 @@ class TorchFlowerClient(NumPyClient):
             return self._fit_moon(parameters, config)
         if algorithm == "feddyn":
             return self._fit_feddyn(parameters, config)
+        if algorithm == "fedadmm":
+            return self._fit_fedadmm(parameters, config)
         if algorithm == "feddc":
             return self._fit_feddc(parameters, config)
         if algorithm == "feddecorr":
@@ -332,6 +335,34 @@ class TorchFlowerClient(NumPyClient):
         new_state = update_feddyn_state(state, self.model, global_model, alpha)
         self._save_feddyn_state(new_state)
         return get_model_parameters(self.model), len(self.loaders.train.dataset), metrics
+
+    def _fit_fedadmm(
+        self,
+        parameters: list[np.ndarray],
+        config: dict[str, bool | bytes | float | int | str],
+    ) -> tuple[list[np.ndarray], int, dict[str, bool | bytes | float | int | str]]:
+        set_model_parameters(self.model, parameters)
+        global_model = copy.deepcopy(self.model)
+        state = self._load_fedadmm_state()
+
+        local_epochs = int(config.get("local_epochs", self.config.local_epochs))
+        learning_rate = float(config.get("learning_rate", self.config.learning_rate))
+        alpha = float(config.get("fedadmm_alpha", self.config.fedadmm_alpha))
+        metrics, new_state = train_fedadmm_client(
+            self.model,
+            global_model,
+            self.loaders.train,
+            epochs=local_epochs,
+            learning_rate=learning_rate,
+            device=self.config.device,
+            alpha=alpha,
+            state=state,
+        )
+        self._save_fedadmm_state(new_state)
+        updated_parameters = get_model_parameters(self.model) + [
+            tensor.detach().cpu().numpy() for tensor in new_state
+        ]
+        return updated_parameters, len(self.loaders.train.dataset), metrics
 
     def _fit_feddc(
         self,
@@ -1310,6 +1341,14 @@ class TorchFlowerClient(NumPyClient):
             / "state.pt"
         )
 
+    def _fedadmm_state_path(self) -> Path:
+        return (
+            Path(self.config.output_dir)
+            / "fedadmm_clients"
+            / self.client_id
+            / "state.pt"
+        )
+
     def _load_feddyn_state(self) -> list[torch.Tensor]:
         state_path = self._feddyn_state_path()
         if state_path.exists():
@@ -1325,6 +1364,27 @@ class TorchFlowerClient(NumPyClient):
 
     def _save_feddyn_state(self, state: list[torch.Tensor]) -> None:
         state_path = self._feddyn_state_path()
+        state_path.parent.mkdir(parents=True, exist_ok=True)
+        torch.save(
+            [tensor.detach().cpu().clone() for tensor in state],
+            state_path,
+        )
+
+    def _load_fedadmm_state(self) -> list[torch.Tensor]:
+        state_path = self._fedadmm_state_path()
+        if state_path.exists():
+            return torch.load(
+                state_path,
+                map_location="cpu",
+                weights_only=True,
+            )
+        return [
+            torch.zeros_like(parameter.detach().cpu())
+            for parameter in self.model.parameters()
+        ]
+
+    def _save_fedadmm_state(self, state: list[torch.Tensor]) -> None:
+        state_path = self._fedadmm_state_path()
         state_path.parent.mkdir(parents=True, exist_ok=True)
         torch.save(
             [tensor.detach().cpu().clone() for tensor in state],

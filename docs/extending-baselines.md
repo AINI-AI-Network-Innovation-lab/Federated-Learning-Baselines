@@ -176,6 +176,7 @@ Các algorithm hiện có:
 - `feddisco`
 - `fedvck`
 - `feddyn`
+- `fedadmm`
 - `fedexp`
 - `fedsam`
 - `fedntd`
