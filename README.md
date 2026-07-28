@@ -54,6 +54,16 @@ flwr run . --stream
 flwr run . --run-config 'algorithm="fedavg" dataset="mnist" model="mnist_cnn" partitioner="dirichlet" dirichlet-alpha=0.3' --stream
 ```
 
+### FedADMM đầy đủ
+
+Đặt `algorithm="fedadmm"` để chạy triển khai bám sát Algorithm 2 trong [FedADMM](https://arxiv.org/abs/2203.15104). Thuật toán hỗ trợ partial participation, trạng thái client/server được lưu qua các round, và các phép prox `identity`, `l1`, `box`.
+
+```bash
+flwr run . --run-config 'algorithm="fedadmm" fedadmm-penalty=1.0 fedadmm-prox="identity" fedadmm-local-steps=300 batch-size=2 learning-rate=0.01' --stream
+```
+
+State được lưu tại `outputs/fedadmm_clients/<client-id>/state.pt` và `outputs/fedadmm_server/state.pt`. Tùy chọn `fedadmm-alpha` vẫn được giữ làm alias tương thích cho penalty cũ.
+
 ## Thuật Toán Nền
 
 | Thuật toán nền | Năm | Bài báo |
@@ -80,6 +90,7 @@ flwr run . --run-config 'algorithm="fedavg" dataset="mnist" model="mnist_cnn" pa
 | FedYogi | 2021 | [Adaptive Federated Optimization](https://arxiv.org/abs/2003.00295) |
 | MOON | 2021 | [Model-Contrastive Federated Learning](https://arxiv.org/abs/2103.16257) |
 | FedDC | 2022 | [FedDC: Federated Learning with Non-IID Data via Local Drift Decoupling and Correction](https://arxiv.org/abs/2203.11751) |
+| FedADMM | 2022 | [FedADMM: A Federated Primal-Dual Algorithm Allowing Partial Participation](https://arxiv.org/abs/2203.15104) |
 | FedDecorr | 2022 | [Towards Understanding and Mitigating Dimensional Collapse in Heterogeneous Federated Learning](https://arxiv.org/abs/2210.00226) |
 | FedDRL | 2022 | [FedDRL: Deep Reinforcement Learning-based Adaptive Aggregation for Non-IID Data in Federated Learning](https://arxiv.org/abs/2208.02442) |
 | FedLAMA | 2022 | [Layer-wise Adaptive Model Aggregation for Scalable Federated Learning](https://arxiv.org/abs/2110.10302) |

@@ -111,9 +111,90 @@ from fl_baselines.training.moon import train_moon_client
 from fl_baselines.training.fedala import adaptive_local_aggregation
 from fl_baselines.training.scaffold import train_scaffold_client
 from fl_baselines.training.train import train_one_client
+from fl_baselines.training.proximal import BoxProx, IdentityProx, L1Prox
+from fl_baselines.training.fedadmm import train_fedadmm_client
 
 
 class ModelAndAlgorithmTest(unittest.TestCase):
+    def test_fedadmm_proximal_operators(self) -> None:
+        values = [np.array([-2.0, -0.25, 0.25, 2.0], dtype=np.float32)]
+
+        np.testing.assert_array_equal(IdentityProx()(values, 1.0)[0], values[0])
+        np.testing.assert_allclose(
+            L1Prox(weight=0.5)(values, 1.0)[0],
+            np.array([-1.5, 0.0, 0.0, 1.5], dtype=np.float32),
+        )
+        np.testing.assert_array_equal(
+            BoxProx(-1.0, 1.0)(values, 1.0)[0],
+            np.array([-1.0, -0.25, 0.25, 1.0], dtype=np.float32),
+        )
+
+    def test_fedadmm_training_returns_primal_dual_and_hat_state(self) -> None:
+        model = torch.nn.Linear(2, 2, bias=False)
+        global_model = torch.nn.Linear(2, 2, bias=False)
+        with torch.no_grad():
+            model.weight.fill_(1.0)
+            global_model.weight.zero_()
+        loader = DataLoader(
+            TensorDataset(torch.ones(4, 2), torch.zeros(4, dtype=torch.long)),
+            batch_size=2,
+        )
+        state = [torch.zeros_like(parameter) for parameter in model.parameters()]
+
+        metrics, local_state, dual_state, hat_state = train_fedadmm_client(
+            model,
+            global_model,
+            loader,
+            epochs=1,
+            local_steps=1,
+            learning_rate=0.1,
+            device="cpu",
+            alpha=1.0,
+            state=state,
+        )
+
+        self.assertIn("train_loss", metrics)
+        self.assertEqual(len(local_state), 1)
+        self.assertEqual(len(dual_state), 1)
+        self.assertEqual(len(hat_state), 1)
+        torch.testing.assert_close(
+            hat_state[0], local_state[0] + dual_state[0], rtol=1e-5, atol=1e-6
+        )
+
+    def test_fedadmm_training_handles_integer_state_buffers(self) -> None:
+        model = torch.nn.Sequential(
+            torch.nn.Linear(2, 2),
+            torch.nn.BatchNorm1d(2),
+        )
+        global_model = copy.deepcopy(model)
+        loader = DataLoader(
+            TensorDataset(torch.ones(2, 2), torch.zeros(2, dtype=torch.long)),
+            batch_size=2,
+        )
+        state = [torch.zeros_like(value) for value in model.state_dict().values()]
+
+        _, local_state, dual_state, hat_state = train_fedadmm_client(
+            model,
+            global_model,
+            loader,
+            epochs=1,
+            local_steps=1,
+            learning_rate=0.1,
+            device="cpu",
+            alpha=1.0,
+            state=state,
+        )
+        integer_indices = [
+            index
+            for index, value in enumerate(model.state_dict().values())
+            if not torch.is_floating_point(value)
+        ]
+        self.assertTrue(integer_indices)
+        for index in integer_indices:
+            self.assertEqual(dual_state[index].dtype, state[index].dtype)
+            self.assertTrue(torch.equal(dual_state[index], torch.zeros_like(state[index])))
+            self.assertEqual(hat_state[index].dtype, local_state[index].dtype)
+
     def test_evaluate_model_accepts_tuple_output_models(self) -> None:
         class TupleOutputModel(torch.nn.Module):
             def __init__(self) -> None:
@@ -1157,7 +1238,14 @@ class ModelAndAlgorithmTest(unittest.TestCase):
 
     def test_fedadmm_builder_creates_strategy(self) -> None:
         config = ExperimentConfig.from_run_config(
-            {"num-supernodes": 4, "fedadmm-alpha": 0.35}
+            {
+                "num-supernodes": 4,
+                "fedadmm-alpha": 0.35,
+                "fedadmm-penalty": 0.4,
+                "fedadmm-local-steps": 3,
+                "fedadmm-prox": "l1",
+                "fedadmm-l1-weight": 0.2,
+            }
         )
         model = MnistCnnBuilder().build_model(config)
 
@@ -1166,9 +1254,32 @@ class ModelAndAlgorithmTest(unittest.TestCase):
 
         self.assertIsInstance(strategy, FedADMMStrategy)
         self.assertEqual(strategy.min_fit_clients, 4)
-        self.assertEqual(strategy.alpha, 0.35)
+        self.assertEqual(strategy.alpha, 0.4)
         self.assertEqual(fit_config["algorithm"], "fedadmm")
         self.assertEqual(fit_config["fedadmm_alpha"], 0.35)
+        self.assertEqual(fit_config["fedadmm_penalty"], 0.4)
+        self.assertEqual(fit_config["fedadmm_local_steps"], 3)
+        self.assertEqual(fit_config["fedadmm_prox"], "l1")
+
+    def test_fedadmm_builder_supports_current_models(self) -> None:
+        cases = [
+            (MnistCnnBuilder(), {}),
+            (LeNetBuilder(), {}),
+            (ResNet9Builder(), {"input-channels": 3, "input-height": 32, "input-width": 32}),
+            (ResNet18Builder(), {"input-channels": 3, "input-height": 32, "input-width": 32}),
+            (ResNet34Builder(), {"input-channels": 3, "input-height": 32, "input-width": 32}),
+            (InceptionBuilder(), {"input-channels": 3, "input-height": 75, "input-width": 75}),
+        ]
+
+        for model_builder, overrides in cases:
+            with self.subTest(model=model_builder.name):
+                config = ExperimentConfig.from_run_config(
+                    {"algorithm": "fedadmm", "num-supernodes": 2, **overrides}
+                )
+                model = model_builder.build_model(config)
+                strategy = FedADMMBuilder().build_strategy(config, model, evaluate_fn=None)
+                self.assertIsInstance(strategy, FedADMMStrategy)
+                self.assertEqual(strategy.min_fit_clients, 2)
 
     def test_feddyn_builder_supports_current_models(self) -> None:
         cases = [
@@ -4295,10 +4406,13 @@ class ModelAndAlgorithmTest(unittest.TestCase):
             )
 
             self.assertEqual(num_examples, 4)
-            self.assertEqual(len(updated_parameters), 2 * len(initial_parameters))
+            self.assertEqual(len(updated_parameters), len(initial_parameters))
             self.assertIn("train_loss", metrics)
+            self.assertEqual(metrics["fedadmm_client_id"], "5")
             state_path = Path(output_dir) / "fedadmm_clients" / "5" / "state.pt"
             self.assertTrue(state_path.exists())
+            saved_state = torch.load(state_path, map_location="cpu", weights_only=True)
+            self.assertEqual(set(saved_state), {"version", "model", "dual", "hat"})
 
     def test_fedadmm_client_fit_reuses_saved_dual_state(self) -> None:
         with tempfile.TemporaryDirectory() as output_dir:
@@ -4345,16 +4459,187 @@ class ModelAndAlgorithmTest(unittest.TestCase):
             )
             second_state = torch.load(state_path, map_location="cpu", weights_only=True)
 
-            self.assertEqual(len(first_state), len(second_state))
+            self.assertEqual(len(first_state["dual"]), len(second_state["dual"]))
             self.assertTrue(
                 any(
                     not torch.equal(first_tensor, second_tensor)
                     for first_tensor, second_tensor in zip(
-                        first_state,
-                        second_state,
+                        first_state["dual"],
+                        second_state["dual"],
                     )
                 )
             )
+
+    def test_fedadmm_strategy_aggregates_delta_hat_with_partial_participation(self) -> None:
+        model = torch.nn.Linear(1, 1, bias=False)
+        with torch.no_grad():
+            model.weight.zero_()
+        initial = ndarrays_to_parameters([np.array([[0.0]], dtype=np.float32)])
+
+        with tempfile.TemporaryDirectory() as output_dir:
+            strategy = FedADMMStrategy(
+                fraction_fit=0.5,
+                fraction_evaluate=1.0,
+                min_fit_clients=1,
+                min_evaluate_clients=2,
+                min_available_clients=2,
+                initial_parameters=initial,
+                alpha=1.0,
+                num_total_clients=2,
+                prox_operator=IdentityProx(),
+                checkpoint_model=model,
+                output_dir=output_dir,
+            )
+
+            result = [
+                (
+                    type("Proxy", (), {"cid": "flower-node-a"})(),
+                    FitRes(
+                        Status(Code.OK, ""),
+                        ndarrays_to_parameters([np.array([[1.0]], dtype=np.float32)]),
+                        1,
+                        {"fedadmm_client_id": "0"},
+                    ),
+                ),
+                (
+                    type("Proxy", (), {"cid": "flower-node-b"})(),
+                    FitRes(
+                        Status(Code.OK, ""),
+                        ndarrays_to_parameters([np.array([[3.0]], dtype=np.float32)]),
+                        1,
+                        {"fedadmm_client_id": "1"},
+                    ),
+                ),
+            ]
+            first_parameters, _ = strategy.aggregate_fit(1, result, [])
+
+            partial_result = [
+                (
+                    type("Proxy", (), {"cid": "different-proxy-id"})(),
+                    FitRes(
+                        Status(Code.OK, ""),
+                        ndarrays_to_parameters([np.array([[2.0]], dtype=np.float32)]),
+                        1,
+                        {"fedadmm_client_id": "0"},
+                    ),
+                )
+            ]
+            second_parameters, _ = strategy.aggregate_fit(2, partial_result, [])
+
+        self.assertAlmostEqual(parameters_to_ndarrays(first_parameters)[0].item(), 2.0)
+        self.assertAlmostEqual(parameters_to_ndarrays(second_parameters)[0].item(), 3.0)
+
+    def test_fedadmm_strategy_applies_server_prox(self) -> None:
+        model = torch.nn.Linear(1, 1, bias=False)
+        initial = ndarrays_to_parameters([np.array([[0.0]], dtype=np.float32)])
+        with tempfile.TemporaryDirectory() as output_dir:
+            strategy = FedADMMStrategy(
+                fraction_fit=1.0,
+                fraction_evaluate=1.0,
+                min_fit_clients=2,
+                min_evaluate_clients=2,
+                min_available_clients=2,
+                initial_parameters=initial,
+                alpha=1.0,
+                num_total_clients=2,
+                prox_operator=L1Prox(weight=1.0),
+                checkpoint_model=model,
+                output_dir=output_dir,
+            )
+            results = [
+                (
+                    type("Proxy", (), {"cid": "a"})(),
+                    FitRes(
+                        Status(Code.OK, ""),
+                        ndarrays_to_parameters([np.array([[2.0]], dtype=np.float32)]),
+                        1,
+                        {"fedadmm_client_id": "0"},
+                    ),
+                ),
+                (
+                    type("Proxy", (), {"cid": "b"})(),
+                    FitRes(
+                        Status(Code.OK, ""),
+                        ndarrays_to_parameters([np.array([[2.0]], dtype=np.float32)]),
+                        1,
+                        {"fedadmm_client_id": "1"},
+                    ),
+                ),
+            ]
+            aggregated, _ = strategy.aggregate_fit(1, results, [])
+
+        self.assertAlmostEqual(parameters_to_ndarrays(aggregated)[0].item(), 1.0)
+
+    def test_fedadmm_strategy_restart_broadcasts_persisted_bar_parameters(self) -> None:
+        model = torch.nn.Linear(1, 1, bias=False)
+        initial = ndarrays_to_parameters([np.array([[0.0]], dtype=np.float32)])
+        with tempfile.TemporaryDirectory() as output_dir:
+            first = FedADMMStrategy(
+                fraction_fit=1.0,
+                fraction_evaluate=1.0,
+                min_fit_clients=1,
+                min_evaluate_clients=1,
+                min_available_clients=1,
+                initial_parameters=initial,
+                alpha=1.0,
+                num_total_clients=1,
+                prox_operator=L1Prox(weight=1.0),
+                checkpoint_model=model,
+                output_dir=output_dir,
+            )
+            first.aggregate_fit(
+                1,
+                [
+                    (
+                        type("Proxy", (), {"cid": "proxy"})(),
+                        FitRes(
+                            Status(Code.OK, ""),
+                            ndarrays_to_parameters([np.array([[2.0]], dtype=np.float32)]),
+                            1,
+                            {"fedadmm_client_id": "0"},
+                        ),
+                    )
+                ],
+                [],
+            )
+            restarted = FedADMMStrategy(
+                fraction_fit=1.0,
+                fraction_evaluate=1.0,
+                min_fit_clients=1,
+                min_evaluate_clients=1,
+                min_available_clients=1,
+                initial_parameters=initial,
+                alpha=1.0,
+                num_total_clients=1,
+                prox_operator=L1Prox(weight=1.0),
+                checkpoint_model=model,
+                output_dir=output_dir,
+            )
+
+        self.assertAlmostEqual(
+            parameters_to_ndarrays(restarted.initial_parameters)[0].item(), 1.0
+        )
+
+    def test_fedadmm_strategy_initializes_tilde_and_client_hat_at_consensus(self) -> None:
+        model = torch.nn.Linear(1, 1, bias=False)
+        initial = ndarrays_to_parameters([np.array([[2.0]], dtype=np.float32)])
+        with tempfile.TemporaryDirectory() as output_dir:
+            strategy = FedADMMStrategy(
+                fraction_fit=1.0,
+                fraction_evaluate=1.0,
+                min_fit_clients=1,
+                min_evaluate_clients=1,
+                min_available_clients=1,
+                initial_parameters=initial,
+                alpha=1.0,
+                num_total_clients=1,
+                prox_operator=L1Prox(weight=1.0),
+                checkpoint_model=model,
+                output_dir=output_dir,
+            )
+
+        self.assertAlmostEqual(strategy.tilde_parameters[0].item(), 1.0)
+        self.assertAlmostEqual(strategy.client_hat_models["0"][0].item(), 1.0)
 
     def test_feddc_client_fit_persists_state(self) -> None:
         with tempfile.TemporaryDirectory() as output_dir:

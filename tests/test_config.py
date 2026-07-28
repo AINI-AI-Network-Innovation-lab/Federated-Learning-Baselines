@@ -10,6 +10,33 @@ from fl_baselines.core.config import ExperimentConfig
 
 
 class ExperimentConfigTest(unittest.TestCase):
+    def test_fedadmm_config_parses_canonical_penalty_and_prox(self) -> None:
+        config = ExperimentConfig.from_run_config(
+            {
+                "fedadmm-penalty": 2.0,
+                "fedadmm-alpha": 0.5,
+                "fedadmm-local-steps": 7,
+                "fedadmm-tolerance": 1e-4,
+                "fedadmm-prox": "l1",
+                "fedadmm-l1-weight": 0.25,
+            }
+        )
+
+        self.assertEqual(config.fedadmm_penalty, 2.0)
+        self.assertEqual(config.fedadmm_alpha, 0.5)
+        self.assertEqual(config.fedadmm_local_steps, 7)
+        self.assertAlmostEqual(config.fedadmm_tolerance, 1e-4)
+        self.assertEqual(config.fedadmm_prox, "l1")
+        self.assertAlmostEqual(config.fedadmm_l1_weight, 0.25)
+
+    def test_fedadmm_config_rejects_invalid_parameters(self) -> None:
+        with self.assertRaisesRegex(ValueError, "fedadmm-penalty must be positive"):
+            ExperimentConfig.from_run_config({"fedadmm-penalty": 0.0})
+        with self.assertRaisesRegex(ValueError, "fedadmm-prox must be one of"):
+            ExperimentConfig.from_run_config({"fedadmm-prox": "unknown"})
+        with self.assertRaisesRegex(ValueError, "fedadmm-l1-weight must be non-negative"):
+            ExperimentConfig.from_run_config({"fedadmm-l1-weight": -1.0})
+
     def test_parse_flower_run_config_with_defaults(self) -> None:
         config = ExperimentConfig.from_run_config({})
 

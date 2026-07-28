@@ -347,21 +347,59 @@ class TorchFlowerClient(NumPyClient):
 
         local_epochs = int(config.get("local_epochs", self.config.local_epochs))
         learning_rate = float(config.get("learning_rate", self.config.learning_rate))
-        alpha = float(config.get("fedadmm_alpha", self.config.fedadmm_alpha))
-        metrics, new_state = train_fedadmm_client(
+        alpha = float(
+            config.get(
+                "fedadmm_penalty",
+                config.get("fedadmm_alpha", self.config.fedadmm_penalty),
+            )
+        )
+        local_steps = int(
+            config.get("fedadmm_local_steps", self.config.fedadmm_local_steps)
+        )
+        tolerance = float(
+            config.get("fedadmm_tolerance", self.config.fedadmm_tolerance)
+        )
+        if state is None:
+            previous_hat = [
+                value.detach().cpu().clone() for value in self.model.state_dict().values()
+            ]
+            dual_state = [
+                torch.zeros_like(value.detach().cpu())
+                for value in self.model.state_dict().values()
+            ]
+        else:
+            set_model_parameters(
+                self.model,
+                [value.detach().cpu().numpy() for value in state["model"]],
+            )
+            previous_hat = [value.detach().cpu().clone() for value in state["hat"]]
+            dual_state = [value.detach().cpu().clone() for value in state["dual"]]
+
+        metrics, local_state, new_state, new_hat = train_fedadmm_client(
             self.model,
             global_model,
             self.loaders.train,
             epochs=local_epochs,
+            local_steps=local_steps,
             learning_rate=learning_rate,
             device=self.config.device,
             alpha=alpha,
-            state=state,
+            state=dual_state,
+            tolerance=tolerance,
         )
-        self._save_fedadmm_state(new_state)
-        updated_parameters = get_model_parameters(self.model) + [
-            tensor.detach().cpu().numpy() for tensor in new_state
+        self._save_fedadmm_state(
+            {
+                "version": 1,
+                "model": [tensor.detach().cpu().clone() for tensor in local_state],
+                "dual": [tensor.detach().cpu().clone() for tensor in new_state],
+                "hat": [tensor.detach().cpu().clone() for tensor in new_hat],
+            }
+        )
+        updated_parameters = [
+            new_value.detach().cpu().numpy() - old_value.detach().cpu().numpy()
+            for new_value, old_value in zip(new_hat, previous_hat)
         ]
+        metrics["fedadmm_client_id"] = self.client_id
         return updated_parameters, len(self.loaders.train.dataset), metrics
 
     def _fit_feddc(
@@ -1370,26 +1408,25 @@ class TorchFlowerClient(NumPyClient):
             state_path,
         )
 
-    def _load_fedadmm_state(self) -> list[torch.Tensor]:
+    def _load_fedadmm_state(self) -> dict[str, object] | None:
         state_path = self._fedadmm_state_path()
         if state_path.exists():
-            return torch.load(
+            state = torch.load(
                 state_path,
                 map_location="cpu",
                 weights_only=True,
             )
-        return [
-            torch.zeros_like(parameter.detach().cpu())
-            for parameter in self.model.parameters()
-        ]
+            if not isinstance(state, dict) or set(state) != {"version", "model", "dual", "hat"}:
+                raise ValueError("FedADMM state file has an invalid schema")
+            if state["version"] != 1:
+                raise ValueError("Unsupported FedADMM state version")
+            return state
+        return None
 
-    def _save_fedadmm_state(self, state: list[torch.Tensor]) -> None:
+    def _save_fedadmm_state(self, state: dict[str, object]) -> None:
         state_path = self._fedadmm_state_path()
         state_path.parent.mkdir(parents=True, exist_ok=True)
-        torch.save(
-            [tensor.detach().cpu().clone() for tensor in state],
-            state_path,
-        )
+        torch.save(state, state_path)
 
     def _feddc_state_path(self) -> Path:
         return (

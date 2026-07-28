@@ -200,6 +200,12 @@ Các algorithm hiện có:
 - `scaffold`
 - `moon`
 
+FedADMM là baseline có state đặc biệt ở cả hai phía: client persist `x_i`,
+`z_i`, `hat_x_i`, còn server persist `tilde_x`, `bar_x` và cache `hat_x_i`.
+Client trả `Delta hat_x_i` qua parameter payload và `fedadmm_client_id` qua
+fit metrics; server áp dụng `1 / num-supernodes` rồi gọi proximal operator
+được chọn bởi `fedadmm-prox`.
+
 Algorithm builder nên đảm bảo:
 
 - nhận `ExperimentConfig`, model ban đầu, và optional `evaluate_fn`
