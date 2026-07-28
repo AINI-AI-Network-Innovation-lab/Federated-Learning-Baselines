@@ -92,6 +92,16 @@ feddyn-alpha = 0.1
 # FedDC
 feddc-alpha = 0.01
 
+# FedADMM
+fedadmm-alpha = 1.0
+fedadmm-penalty = 1.0
+fedadmm-local-steps = 0
+fedadmm-tolerance = 0.0
+fedadmm-prox = "identity"
+fedadmm-l1-weight = 0.0
+fedadmm-box-min = -1.0
+fedadmm-box-max = 1.0
+
 # FedDecorr
 feddecorr-beta = 0.1
 

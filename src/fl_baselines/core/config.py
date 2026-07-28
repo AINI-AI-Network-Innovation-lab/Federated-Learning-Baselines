@@ -75,6 +75,13 @@ class ExperimentConfig:
     fedadp_alpha: float = 5.0
     feddyn_alpha: float = 0.1
     fedadmm_alpha: float = 1.0
+    fedadmm_penalty: float = 1.0
+    fedadmm_local_steps: int = 0
+    fedadmm_tolerance: float = 0.0
+    fedadmm_prox: str = "identity"
+    fedadmm_l1_weight: float = 0.0
+    fedadmm_box_min: float = -1.0
+    fedadmm_box_max: float = 1.0
     feddc_alpha: float = 0.01
     feddecorr_beta: float = 0.1
     fedexp_epsilon: float = 0.001
@@ -316,6 +323,41 @@ class ExperimentConfig:
                 run_config,
                 "fedadmm-alpha",
                 cls.fedadmm_alpha,
+            ),
+            fedadmm_penalty=_as_float(
+                run_config,
+                "fedadmm-penalty",
+                _as_float(run_config, "fedadmm-alpha", cls.fedadmm_penalty),
+            ),
+            fedadmm_local_steps=_as_int(
+                run_config,
+                "fedadmm-local-steps",
+                cls.fedadmm_local_steps,
+            ),
+            fedadmm_tolerance=_as_float(
+                run_config,
+                "fedadmm-tolerance",
+                cls.fedadmm_tolerance,
+            ),
+            fedadmm_prox=_as_str(
+                run_config,
+                "fedadmm-prox",
+                cls.fedadmm_prox,
+            ),
+            fedadmm_l1_weight=_as_float(
+                run_config,
+                "fedadmm-l1-weight",
+                cls.fedadmm_l1_weight,
+            ),
+            fedadmm_box_min=_as_float(
+                run_config,
+                "fedadmm-box-min",
+                cls.fedadmm_box_min,
+            ),
+            fedadmm_box_max=_as_float(
+                run_config,
+                "fedadmm-box-max",
+                cls.fedadmm_box_max,
             ),
             feddc_alpha=_as_float(
                 run_config,
@@ -950,6 +992,20 @@ class ExperimentConfig:
             raise ValueError("fedadp-alpha must be positive")
         if self.feddyn_alpha <= 0:
             raise ValueError("feddyn-alpha must be positive")
+        if self.fedadmm_penalty <= 0:
+            raise ValueError("fedadmm-penalty must be positive")
+        if self.fedadmm_alpha <= 0:
+            raise ValueError("fedadmm-alpha must be positive")
+        if self.fedadmm_local_steps < 0:
+            raise ValueError("fedadmm-local-steps must be non-negative")
+        if self.fedadmm_tolerance < 0:
+            raise ValueError("fedadmm-tolerance must be non-negative")
+        if self.fedadmm_prox not in {"identity", "l1", "box"}:
+            raise ValueError("fedadmm-prox must be one of: identity, l1, box")
+        if self.fedadmm_l1_weight < 0:
+            raise ValueError("fedadmm-l1-weight must be non-negative")
+        if self.fedadmm_box_min > self.fedadmm_box_max:
+            raise ValueError("fedadmm-box-min must not exceed fedadmm-box-max")
         if self.feddc_alpha <= 0:
             raise ValueError("feddc-alpha must be positive")
         if self.feddecorr_beta < 0:

@@ -54,6 +54,16 @@ flwr run . --stream
 flwr run . --run-config 'algorithm="fedavg" dataset="mnist" model="mnist_cnn" partitioner="dirichlet" dirichlet-alpha=0.3' --stream
 ```
 
+### Full FedADMM
+
+Set `algorithm="fedadmm"` to run the implementation faithful to Algorithm 2 in [FedADMM](https://arxiv.org/abs/2203.15104). It supports partial participation, persisted client/server state across rounds, and the `identity`, `l1`, and `box` proximal operators.
+
+```bash
+flwr run . --run-config 'algorithm="fedadmm" fedadmm-penalty=1.0 fedadmm-prox="identity" fedadmm-local-steps=300 batch-size=2 learning-rate=0.01' --stream
+```
+
+State is stored in `outputs/fedadmm_clients/<client-id>/state.pt` and `outputs/fedadmm_server/state.pt`. `fedadmm-alpha` remains available as a compatibility alias for the legacy penalty setting.
+
 ## Baselines
 
 | Baseline | Year | Paper |
@@ -80,6 +90,7 @@ flwr run . --run-config 'algorithm="fedavg" dataset="mnist" model="mnist_cnn" pa
 | FedYogi | 2021 | [Adaptive Federated Optimization](https://arxiv.org/abs/2003.00295) |
 | MOON | 2021 | [Model-Contrastive Federated Learning](https://arxiv.org/abs/2103.16257) |
 | FedDC | 2022 | [FedDC: Federated Learning with Non-IID Data via Local Drift Decoupling and Correction](https://arxiv.org/abs/2203.11751) |
+| FedADMM | 2022 | [FedADMM: A Federated Primal-Dual Algorithm Allowing Partial Participation](https://arxiv.org/abs/2203.15104) |
 | FedDecorr | 2022 | [Towards Understanding and Mitigating Dimensional Collapse in Heterogeneous Federated Learning](https://arxiv.org/abs/2210.00226) |
 | FedDRL | 2022 | [FedDRL: Deep Reinforcement Learning-based Adaptive Aggregation for Non-IID Data in Federated Learning](https://arxiv.org/abs/2208.02442) |
 | FedLAMA | 2022 | [Layer-wise Adaptive Model Aggregation for Scalable Federated Learning](https://arxiv.org/abs/2110.10302) |
